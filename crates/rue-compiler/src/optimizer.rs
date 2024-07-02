@@ -2,18 +2,15 @@ use std::collections::HashMap;
 
 use crate::{
     database::{Database, HirId, LirId, SymbolId},
-    hir::{BinOp, Hir},
+    dependency_graph::DependencyGraph,
+    environment::Environment,
+    hir::{BinOp, Hir, Op},
     lir::Lir,
     symbol::{Function, Symbol},
     value::{FunctionType, Rest, Value},
     EnvironmentId, ScopeId,
 };
 
-mod dependency_graph;
-mod environment;
-
-pub use dependency_graph::*;
-pub use environment::*;
 use indexmap::IndexSet;
 
 pub struct Optimizer<'a> {
@@ -35,7 +32,7 @@ impl<'a> Optimizer<'a> {
         let Symbol::Function(fun) = self.db.symbol(main).clone() else {
             unreachable!();
         };
-        let env_id = self.graph.env(fun.scope_id);
+        let env_id = self.graph.environment_id(fun.scope_id);
         let mut definitions = self.db.env(env_id).definitions();
         definitions.extend(self.db.env(env_id).captures());
         self.opt_definitions(env_id, definitions, fun.hir_id)
@@ -53,7 +50,7 @@ impl<'a> Optimizer<'a> {
 
         while let Some(parent_env_id) = self.db.env(current_env_id).parent() {
             assert!(self.db.env(current_env_id).parameters().is_empty());
-            assert!(!self.db.env(current_env_id).rest_parameter());
+            assert!(!self.db.env(current_env_id).rest());
 
             current_env_id = parent_env_id;
             environment.extend(self.db.env(current_env_id).build());
@@ -71,7 +68,7 @@ impl<'a> Optimizer<'a> {
 
         let mut path = 1;
 
-        if !(index + 1 == environment.len() && self.db.env(env_id).rest_parameter()) {
+        if !(index + 1 == environment.len() && self.db.env(env_id).rest()) {
             path *= 2;
         }
 
@@ -88,7 +85,7 @@ impl<'a> Optimizer<'a> {
             Symbol::Function(Function {
                 hir_id, scope_id, ..
             }) => {
-                let function_env_id = self.graph.env(scope_id);
+                let function_env_id = self.graph.environment_id(scope_id);
                 let function = self.opt_definitions(
                     function_env_id,
                     self.db.env(function_env_id).definitions(),
@@ -97,7 +94,7 @@ impl<'a> Optimizer<'a> {
                 self.db.alloc_lir(Lir::Quote(function))
             }
             Symbol::Const(Value { hir_id, .. }) => self.opt_hir(env_id, hir_id),
-            Symbol::Let(symbol) if self.graph.symbol_usages(symbol_id) > 0 => {
+            Symbol::Let(symbol) if self.graph.symbol_references(symbol_id) > 0 => {
                 self.opt_hir(env_id, symbol.hir_id)
             }
             Symbol::Unknown
@@ -161,10 +158,16 @@ impl<'a> Optimizer<'a> {
             Hir::Atom(atom) => self.db.alloc_lir(Lir::Atom(atom.clone())),
             Hir::Pair(first, rest) => self.opt_pair(env_id, first, rest),
             Hir::Reference(symbol_id, ..) => self.opt_reference(env_id, symbol_id),
-            Hir::CheckExists(value) => self.opt_check_exists(env_id, value),
-            Hir::Definition { scope_id, hir_id } => {
-                self.opt_env_definition(env_id, scope_id, hir_id)
-            }
+            Hir::Op(Op::First, value) => self.opt_first(env_id, value),
+            Hir::Op(Op::Rest, value) => self.opt_rest(env_id, value),
+            Hir::Op(Op::Not, value) => self.opt_not(env_id, value),
+            Hir::Op(Op::Sha256, value) => self.opt_sha256(env_id, value),
+            Hir::Op(Op::Listp, value) => self.opt_listp(env_id, value),
+            Hir::Op(Op::Strlen, value) => self.opt_strlen(env_id, value),
+            Hir::Op(Op::PubkeyForExp, value) => self.opt_pubkey_for_exp(env_id, value),
+            Hir::Op(Op::Exists, value) => self.opt_check_exists(env_id, value),
+            Hir::Definition(scope_id, hir_id) => self.opt_env_definition(env_id, scope_id, hir_id),
+            Hir::Raise(value) => self.opt_raise(env_id, value),
             Hir::FunctionCall {
                 callee,
                 args,
@@ -178,7 +181,7 @@ impl<'a> Optimizer<'a> {
                         ..
                     }) = self.db.symbol(*symbol_id)
                     {
-                        let function_env_id = self.graph.env(*scope_id);
+                        let function_env_id = self.graph.environment_id(*scope_id);
                         return self.opt_inline_function_call(
                             env_id,
                             function_env_id,
@@ -191,7 +194,7 @@ impl<'a> Optimizer<'a> {
                 }
                 self.opt_function_call(env_id, callee, args, varargs)
             }
-            Hir::BinaryOp { op, lhs, rhs } => {
+            Hir::BinaryOp(op, lhs, rhs) => {
                 let handler = match op {
                     BinOp::Add => Self::opt_add,
                     BinOp::Subtract => Self::opt_subtract,
@@ -211,19 +214,9 @@ impl<'a> Optimizer<'a> {
                 };
                 handler(self, env_id, lhs, rhs)
             }
-            Hir::First(value) => self.opt_first(env_id, value),
-            Hir::Rest(value) => self.opt_rest(env_id, value),
-            Hir::Not(value) => self.opt_not(env_id, value),
-            Hir::Raise(value) => self.opt_raise(env_id, value),
-            Hir::Sha256(value) => self.opt_sha256(env_id, value),
-            Hir::IsCons(value) => self.opt_is_cons(env_id, value),
-            Hir::Strlen(value) => self.opt_strlen(env_id, value),
-            Hir::PubkeyForExp(value) => self.opt_pubkey_for_exp(env_id, value),
-            Hir::If {
-                condition,
-                then_block,
-                else_block,
-            } => self.opt_if(env_id, condition, then_block, else_block),
+            Hir::If(condition, then_block, else_block) => {
+                self.opt_if(env_id, condition, then_block, else_block)
+            }
         }
     }
 
@@ -256,18 +249,18 @@ impl<'a> Optimizer<'a> {
         scope_id: ScopeId,
         hir_id: HirId,
     ) -> LirId {
-        let definition_env_id = self.graph.env(scope_id);
+        let definition_env_id = self.graph.environment_id(scope_id);
         for symbol_id in self.db.env_mut(definition_env_id).definitions() {
             let Symbol::Let(..) = self.db.symbol(symbol_id) else {
                 continue;
             };
-            if self.graph.symbol_usages(symbol_id) == 1 {
+            if self.graph.symbol_references(symbol_id) == 1 {
                 self.db
                     .env_mut(definition_env_id)
                     .remove_definition(symbol_id);
             }
         }
-        let child_env_id = self.graph.env(scope_id);
+        let child_env_id = self.graph.environment_id(scope_id);
         let body = self.opt_hir(child_env_id, hir_id);
 
         let mut args = Vec::new();
@@ -309,9 +302,9 @@ impl<'a> Optimizer<'a> {
         self.db.alloc_lir(Lir::Sha256(vec![lir_id]))
     }
 
-    fn opt_is_cons(&mut self, env_id: EnvironmentId, hir_id: HirId) -> LirId {
+    fn opt_listp(&mut self, env_id: EnvironmentId, hir_id: HirId) -> LirId {
         let lir_id = self.opt_hir(env_id, hir_id);
-        self.db.alloc_lir(Lir::IsCons(lir_id))
+        self.db.alloc_lir(Lir::Listp(lir_id))
     }
 
     fn opt_strlen(&mut self, env_id: EnvironmentId, hir_id: HirId) -> LirId {
@@ -327,7 +320,7 @@ impl<'a> Optimizer<'a> {
     fn opt_reference(&mut self, env_id: EnvironmentId, symbol_id: SymbolId) -> LirId {
         match self.db.symbol(symbol_id).clone() {
             Symbol::Function(Function { scope_id, .. }) => {
-                let function_env_id = self.graph.env(scope_id);
+                let function_env_id = self.graph.environment_id(scope_id);
                 let body = self.opt_path(env_id, symbol_id);
 
                 let mut captures = Vec::new();
@@ -344,7 +337,7 @@ impl<'a> Optimizer<'a> {
             }
             Symbol::InlineFunction(..) => self.db.alloc_lir(Lir::Atom(vec![])),
             Symbol::InlineConst(Value { hir_id, .. }) => self.opt_hir(env_id, hir_id),
-            Symbol::Let(symbol) if self.graph.symbol_usages(symbol_id) == 1 => {
+            Symbol::Let(symbol) if self.graph.symbol_references(symbol_id) == 1 => {
                 self.opt_hir(env_id, symbol.hir_id)
             }
             Symbol::Let(..) | Symbol::Const(..) | Symbol::Parameter(..) => {
@@ -376,7 +369,7 @@ impl<'a> Optimizer<'a> {
 
         let callee = if let Hir::Reference(symbol_id, ..) = self.db.hir(callee).clone() {
             if let Symbol::Function(Function { scope_id, .. }) = self.db.symbol(symbol_id) {
-                let callee_env_id = self.graph.env(*scope_id);
+                let callee_env_id = self.graph.environment_id(*scope_id);
                 for symbol_id in self.db.env(callee_env_id).captures().into_iter().rev() {
                     let capture = self.opt_path(env_id, symbol_id);
                     lir_id = self.db.alloc_lir(Lir::Pair(capture, lir_id));
