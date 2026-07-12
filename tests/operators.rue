@@ -33,8 +33,14 @@ test fn comparison() {
     assert 50 < 100;
     assert 100 >= 50;
     assert 100 >= 100;
+    assert !(50 >= 100);
+    assert 101 >= 100;
+    assert !(99 >= 100);
     assert 50 <= 100;
     assert 100 <= 100;
+    assert !(100 <= 50);
+    assert 99 <= 100;
+    assert !(101 <= 100);
 
     assert "a" == "a";
     assert !("a" == "b");
@@ -45,8 +51,14 @@ test fn comparison() {
     assert "a" < "b";
     assert "b" >= "a";
     assert "b" >= "b";
+    assert !("a" >= "b");
+    assert "ab" >= "aa";
+    assert !("aa" >= "ab");
     assert "a" <= "b";
     assert "a" <= "a";
+    assert !("b" <= "a");
+    assert "aa" <= "ab";
+    assert !("ab" <= "aa");
 
     assert true;
     assert !false;

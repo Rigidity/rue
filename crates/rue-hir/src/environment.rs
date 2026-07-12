@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use indexmap::IndexMap;
 
 use crate::SymbolId;
@@ -44,7 +46,7 @@ impl Environment {
 
         // Sort symbols by reference count in descending order
         let mut symbols: Vec<_> = referenced_symbols.into_iter().collect();
-        symbols.sort_by(|a, b| b.1.cmp(&a.1));
+        symbols.sort_by_key(|b| Reverse(b.1));
 
         // Split symbols into two groups, trying to balance:
         // 1. Total reference counts between groups
