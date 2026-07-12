@@ -259,26 +259,22 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                     BinaryOp::Gt => self.arena.alloc(Lir::Gt(left, right)),
                     BinaryOp::Lt => self.arena.alloc(Lir::Gt(right, left)),
                     BinaryOp::Gte => {
-                        let gt = self.arena.alloc(Lir::Gt(left, right));
-                        let eq = self.arena.alloc(Lir::Eq(left, right));
-                        self.arena.alloc(Lir::Any(vec![gt, eq]))
+                        let lt = self.arena.alloc(Lir::Gt(right, left));
+                        self.arena.alloc(Lir::Not(lt))
                     }
                     BinaryOp::Lte => {
-                        let lt = self.arena.alloc(Lir::Gt(right, left));
-                        let eq = self.arena.alloc(Lir::Eq(left, right));
-                        self.arena.alloc(Lir::Any(vec![lt, eq]))
+                        let gt = self.arena.alloc(Lir::Gt(left, right));
+                        self.arena.alloc(Lir::Not(gt))
                     }
                     BinaryOp::GtBytes => self.arena.alloc(Lir::GtBytes(left, right)),
                     BinaryOp::LtBytes => self.arena.alloc(Lir::GtBytes(right, left)),
                     BinaryOp::GteBytes => {
-                        let gt = self.arena.alloc(Lir::GtBytes(left, right));
-                        let eq = self.arena.alloc(Lir::Eq(left, right));
-                        self.arena.alloc(Lir::Any(vec![gt, eq]))
+                        let lt = self.arena.alloc(Lir::GtBytes(right, left));
+                        self.arena.alloc(Lir::Not(lt))
                     }
                     BinaryOp::LteBytes => {
-                        let lt = self.arena.alloc(Lir::GtBytes(right, left));
-                        let eq = self.arena.alloc(Lir::Eq(left, right));
-                        self.arena.alloc(Lir::Any(vec![lt, eq]))
+                        let gt = self.arena.alloc(Lir::GtBytes(left, right));
+                        self.arena.alloc(Lir::Not(gt))
                     }
                     BinaryOp::Eq => self.arena.alloc(Lir::Eq(left, right)),
                     BinaryOp::Ne => {
