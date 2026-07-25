@@ -4,7 +4,30 @@ use id_arena::Arena;
 
 use crate::{ClvmOp, Lir, LirId, Result, bigint_atom};
 
-pub fn codegen(arena: &Arena<Lir>, allocator: &mut Allocator, lir: LirId) -> Result<NodePtr> {
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CodegenOptions {
+    pub optimize_static_pairs: bool,
+}
+
+pub fn codegen(
+    arena: &Arena<Lir>,
+    allocator: &mut Allocator,
+    lir: LirId,
+    options: CodegenOptions,
+) -> Result<NodePtr> {
+    codegen_impl(arena, allocator, lir, options)
+}
+
+fn codegen_impl(
+    arena: &Arena<Lir>,
+    allocator: &mut Allocator,
+    lir: LirId,
+    options: CodegenOptions,
+) -> Result<NodePtr> {
+    let codegen = |arena: &Arena<Lir>, allocator: &mut Allocator, lir: LirId| {
+        codegen_impl(arena, allocator, lir, options)
+    };
+
     match &arena[lir] {
         Lir::Atom(atom) => {
             if atom.is_empty() {
@@ -72,6 +95,16 @@ pub fn codegen(arena: &Arena<Lir>, allocator: &mut Allocator, lir: LirId) -> Res
             Ok(clvm_list!(ClvmOp::Rest, arg).to_clvm(allocator)?)
         }
         Lir::Cons(first, rest) => {
+            if options.optimize_static_pairs
+                && is_static_value(arena, *first)
+                && is_static_value(arena, *rest)
+            {
+                let first = codegen_static_value(arena, allocator, *first)?;
+                let rest = codegen_static_value(arena, allocator, *rest)?;
+                let pair = allocator.new_pair(first, rest)?;
+                return Ok(clvm_quote!(pair).to_clvm(allocator)?);
+            }
+
             let first = codegen(arena, allocator, *first)?;
             let rest = codegen(arena, allocator, *rest)?;
             Ok(clvm_list!(ClvmOp::Cons, first, rest).to_clvm(allocator)?)
@@ -380,6 +413,36 @@ pub fn codegen(arena: &Arena<Lir>, allocator: &mut Allocator, lir: LirId) -> Res
     }
 }
 
+fn is_static_value(arena: &Arena<Lir>, lir: LirId) -> bool {
+    match &arena[lir] {
+        Lir::Atom(_) => true,
+        Lir::Cons(first, rest) => is_static_value(arena, *first) && is_static_value(arena, *rest),
+        _ => false,
+    }
+}
+
+fn codegen_static_value(
+    arena: &Arena<Lir>,
+    allocator: &mut Allocator,
+    lir: LirId,
+) -> Result<NodePtr> {
+    match &arena[lir] {
+        Lir::Atom(atom) => {
+            if atom.is_empty() {
+                Ok(NodePtr::NIL)
+            } else {
+                Ok(allocator.new_atom(atom)?)
+            }
+        }
+        Lir::Cons(first, rest) => {
+            let first = codegen_static_value(arena, allocator, *first)?;
+            let rest = codegen_static_value(arena, allocator, *rest)?;
+            Ok(allocator.new_pair(first, rest)?)
+        }
+        _ => unreachable!("static LIR value contained a dynamic expression"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chialisp::classic::clvm_tools::binutils::disassemble;
@@ -390,7 +453,28 @@ mod tests {
     #[allow(clippy::needless_pass_by_value)]
     fn check(arena: &Arena<Lir>, lir: LirId, expect: Expect) {
         let mut allocator = Allocator::new();
-        let ptr = codegen(arena, &mut allocator, lir).unwrap();
+        let ptr = codegen(arena, &mut allocator, lir, CodegenOptions::default()).unwrap();
+        let result = disassemble(&allocator, ptr, None);
+        expect.assert_eq(&result);
+    }
+
+    #[allow(clippy::needless_pass_by_value)]
+    fn check_with_options(
+        arena: &Arena<Lir>,
+        lir: LirId,
+        optimize_static_pairs: bool,
+        expect: Expect,
+    ) {
+        let mut allocator = Allocator::new();
+        let ptr = codegen(
+            arena,
+            &mut allocator,
+            lir,
+            CodegenOptions {
+                optimize_static_pairs,
+            },
+        )
+        .unwrap();
         let result = disassemble(&allocator, ptr, None);
         expect.assert_eq(&result);
     }
@@ -494,6 +578,16 @@ mod tests {
         let rest = arena.alloc(Lir::Atom(b"rest".to_vec()));
         let lir = arena.alloc(Lir::Cons(first, rest));
         check(&arena, lir, expect![[r#"(c (q . "first") (q . "rest"))"#]]);
+        check_with_options(&arena, lir, true, expect![[r#"(q "first" . "rest")"#]]);
+
+        let path = arena.alloc(Lir::Path(2));
+        let lir = arena.alloc(Lir::Cons(path, lir));
+        check_with_options(
+            &arena,
+            lir,
+            true,
+            expect![[r#"(c 2 (q "first" . "rest"))"#]],
+        );
     }
 
     #[test]

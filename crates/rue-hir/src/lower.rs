@@ -191,6 +191,7 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                 let rest = self.lower_hir(env, rest);
                 self.arena.alloc(Lir::Cons(first, rest))
             }
+            Hir::Const(expr) => self.lower_hir(env, expr.value),
             Hir::Reference(symbol) => self.lower_symbol(env, symbol, false),
             Hir::Block(block) => self.lower_block(env, block.statements, block.body),
             Hir::Lambda(lambda) => self.lower_symbol(env, lambda, true),

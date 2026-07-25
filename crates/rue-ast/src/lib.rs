@@ -89,6 +89,7 @@ ast_nodes!(
     StructInitializerExpr,
     StructInitializerField,
     LiteralExpr,
+    ConstExpr,
     GroupExpr,
     PairExpr,
     ListExpr,
@@ -121,6 +122,7 @@ ast_enum!(
     PathExpr,
     StructInitializerExpr,
     LiteralExpr,
+    ConstExpr,
     GroupExpr,
     PairExpr,
     ListExpr,
@@ -563,6 +565,12 @@ impl AstLiteralExpr {
             .children_with_tokens()
             .filter_map(SyntaxElement::into_token)
             .find(|token| SyntaxKind::LITERAL.contains(&token.kind()))
+    }
+}
+
+impl AstConstExpr {
+    pub fn block(&self) -> Option<AstBlock> {
+        self.syntax().children().find_map(AstBlock::cast)
     }
 }
 

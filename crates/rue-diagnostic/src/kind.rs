@@ -216,6 +216,15 @@ pub enum DiagnosticKind {
     #[error("Constant `{0}` references itself")]
     RecursiveConstant(String),
 
+    #[error("Const expression depends on runtime value `{0}`")]
+    ConstRuntimeDependency(String),
+
+    #[error("Const expression failed to evaluate: {0}")]
+    ConstEvalFailed(String),
+
+    #[error("Const expression exceeded the compile-time cost limit of {0}")]
+    ConstEvalCostExceeded(u64),
+
     #[error("Unresolved import `{0}`")]
     UnresolvedImport(String),
 
@@ -293,6 +302,9 @@ impl DiagnosticKind {
             | Self::CannotDestructurePair(..)
             | Self::RecursiveInlineFunction(..)
             | Self::RecursiveConstant(..)
+            | Self::ConstRuntimeDependency(..)
+            | Self::ConstEvalFailed(..)
+            | Self::ConstEvalCostExceeded(..)
             | Self::UnexpectedExplicitReturn
             | Self::UnresolvedImport(..)
             | Self::UnresolvedSuper

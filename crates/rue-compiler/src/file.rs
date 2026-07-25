@@ -18,12 +18,14 @@ use rue_hir::{
     ScopeId, Symbol, SymbolId,
 };
 use rue_lexer::Lexer;
+use rue_lir::CodegenOptions;
 use rue_parser::Parser;
 use thiserror::Error;
 
 use crate::{
     Compiler, ImportCache, SyntaxItemKind, check_unused, compile_symbol_items, compile_type_items,
-    declare_module_items, declare_symbol_items, declare_type_items, resolve_imports,
+    const_eval::evaluate_const_exprs, declare_module_items, declare_symbol_items,
+    declare_type_items, resolve_imports,
 };
 
 #[derive(Debug, Error)]
@@ -271,6 +273,7 @@ impl FileTree {
 
         self.compile_types(ctx);
         self.compile_symbols(ctx);
+        evaluate_const_exprs(ctx);
 
         if unused_check {
             let entrypoints = self.entrypoints(ctx);
@@ -723,5 +726,12 @@ fn codegen(
         lir = rue_lir::optimize(&mut arena, lir);
     }
 
-    Ok(rue_lir::codegen(&arena, allocator, lir)?)
+    Ok(rue_lir::codegen(
+        &arena,
+        allocator,
+        lir,
+        CodegenOptions {
+            optimize_static_pairs: options.optimize_static_pairs,
+        },
+    )?)
 }

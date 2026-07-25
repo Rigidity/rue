@@ -327,6 +327,9 @@ pub enum SyntaxKind {
     #[display("literal expression")]
     LiteralExpr,
 
+    #[display("const expression")]
+    ConstExpr,
+
     #[display("group expression")]
     GroupExpr,
 
@@ -600,6 +603,7 @@ impl SyntaxKind {
             SyntaxKind::StructInitializerExpr => &[SyntaxKind::StructInitializerExpr],
             SyntaxKind::StructInitializerField => &[SyntaxKind::StructInitializerField],
             SyntaxKind::LiteralExpr => &[SyntaxKind::LiteralExpr],
+            SyntaxKind::ConstExpr => &[SyntaxKind::ConstExpr],
             SyntaxKind::GroupExpr => &[SyntaxKind::GroupExpr],
             SyntaxKind::PairExpr => &[SyntaxKind::PairExpr],
             SyntaxKind::ListExpr => &[SyntaxKind::ListExpr],

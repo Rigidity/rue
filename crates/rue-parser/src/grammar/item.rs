@@ -293,6 +293,34 @@ mod tests {
     }
 
     #[test]
+    fn test_constant_item() {
+        check(
+            item,
+            "inline const VALUE: Int = 42;",
+            expect![[r#"
+                ConstantItem@0..29
+                  Inline@0..6 "inline"
+                  Whitespace@6..7 " "
+                  Const@7..12 "const"
+                  Whitespace@12..13 " "
+                  Ident@13..18 "VALUE"
+                  Colon@18..19 ":"
+                  Whitespace@19..20 " "
+                  PathType@20..24
+                    PathSegment@20..24
+                      Ident@20..23 "Int"
+                      Whitespace@23..24 " "
+                  Assign@24..25 "="
+                  Whitespace@25..26 " "
+                  LiteralExpr@26..28
+                    Integer@26..28 "42"
+                  Semicolon@28..29 ";"
+            "#]],
+            expect![""],
+        );
+    }
+
+    #[test]
     fn test_type_alias_item() {
         check(
             item,

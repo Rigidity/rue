@@ -1,5 +1,6 @@
 mod binary;
 mod cast;
+mod const_expr;
 mod field_access;
 mod function_call;
 mod group;
@@ -15,6 +16,7 @@ mod struct_initializer;
 
 pub use binary::*;
 pub use cast::*;
+pub use const_expr::*;
 pub use field_access::*;
 pub use function_call::*;
 pub use group::*;
@@ -44,6 +46,7 @@ pub fn compile_expr(ctx: &mut Compiler, expr: &AstExpr, expected_type: Option<Ty
         AstExpr::PathExpr(expr) => compile_path_expr(ctx, expr),
         AstExpr::StructInitializerExpr(expr) => compile_struct_initializer_expr(ctx, expr),
         AstExpr::LiteralExpr(expr) => compile_literal_expr(ctx, expr),
+        AstExpr::ConstExpr(expr) => compile_const_expr(ctx, expr, expected_type),
         AstExpr::GroupExpr(expr) => compile_group_expr(ctx, expr, expected_type),
         AstExpr::PairExpr(expr) => compile_pair_expr(ctx, expr, expected_type),
         AstExpr::ListExpr(expr) => compile_list_expr(ctx, expr, expected_type),

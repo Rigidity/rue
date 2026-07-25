@@ -13,6 +13,12 @@ pub struct CompilerOptions {
 
     /// Whether to include debug symbols in the generated code.
     pub debug_symbols: bool,
+
+    /// Whether codegen collapses static pair trees into a single quoted value.
+    pub optimize_static_pairs: bool,
+
+    /// The maximum CLVM cost permitted while evaluating a const expression.
+    pub const_eval_max_cost: u64,
 }
 
 impl Default for CompilerOptions {
@@ -22,6 +28,8 @@ impl Default for CompilerOptions {
             auto_inline: true,
             optimize_lir: true,
             debug_symbols: false,
+            optimize_static_pairs: true,
+            const_eval_max_cost: 11_000_000_000,
         }
     }
 }
@@ -33,6 +41,8 @@ impl CompilerOptions {
             auto_inline: false,
             optimize_lir: false,
             debug_symbols: true,
+            optimize_static_pairs: false,
+            const_eval_max_cost: 11_000_000_000,
         }
     }
 }

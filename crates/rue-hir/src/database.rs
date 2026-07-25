@@ -23,6 +23,7 @@ pub struct Test {
 #[derive(Debug, Default, Clone)]
 pub struct Database {
     hir: Arena<Hir>,
+    const_exprs: Vec<HirId>,
     scopes: Arena<Scope>,
     imports: Arena<Import>,
     symbols: Arena<Symbol>,
@@ -41,7 +42,14 @@ impl Database {
     }
 
     pub fn alloc_hir(&mut self, hir: Hir) -> HirId {
-        self.hir.alloc(hir)
+        let is_const = matches!(&hir, Hir::Const(_));
+        let hir = self.hir.alloc(hir);
+
+        if is_const {
+            self.const_exprs.push(hir);
+        }
+
+        hir
     }
 
     pub fn hir(&self, id: HirId) -> &Hir {
@@ -50,6 +58,10 @@ impl Database {
 
     pub fn hir_mut(&mut self, id: HirId) -> &mut Hir {
         &mut self.hir[id]
+    }
+
+    pub fn const_exprs(&self) -> impl Iterator<Item = HirId> + '_ {
+        self.const_exprs.iter().copied()
     }
 
     pub fn alloc_scope(&mut self, scope: Scope) -> ScopeId {
@@ -215,6 +227,7 @@ impl Database {
             Hir::Pair(first, rest) => {
                 format!("({}, {})", self.debug_hir(*first), self.debug_hir(*rest))
             }
+            Hir::Const(expr) => format!("const {{ {} }}", self.debug_hir(expr.value)),
             Hir::Reference(symbol) => self.debug_symbol(*symbol),
             Hir::Block(block) => block
                 .body

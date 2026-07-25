@@ -1,0 +1,55 @@
+const BASE: Int = 5;
+
+fn double(value: Int) -> Int {
+    value * 2
+}
+
+fn factorial(value: Int) -> Int {
+    if value <= 1 {
+        1
+    } else {
+        value * factorial(value - 1)
+    }
+}
+
+test fn literal() -> Int {
+    const { 1 + 2 }
+}
+
+test fn block() -> Int {
+    const {
+        let value = 6;
+        value * 7
+    }
+}
+
+test fn pair() -> (Int, Int) {
+    const { (1, 2) }
+}
+
+test fn list() -> List<Int> {
+    const { [1, 2, 3] }
+}
+
+test fn const_item() -> Int {
+    const { BASE * 2 }
+}
+
+test fn function() -> Int {
+    const { double(BASE) }
+}
+
+test fn recursive_function() -> Int {
+    const { factorial(5) }
+}
+
+test fn nested() -> Int {
+    const { const { 1 + 2 } + 3 }
+}
+
+test fn debug_effect() -> Int {
+    const {
+        debug 1 / 0;
+        1
+    }
+}

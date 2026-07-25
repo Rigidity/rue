@@ -24,13 +24,13 @@ tests:
   byte_cost: 732000
   total_cost: 733770
 - name: two_inserted_separate_nil
-  program: (i (a (i (> 2 ()) (q) (q 8)) 1) (a (i (> 2 ()) (q) (q 8)) 1) (c () ()))
+  program: (i (a (i (> 2 ()) (q) (q 8)) 1) (a (i (> 2 ()) (q) (q 8)) 1) (q ()))
   debug_program: (i (q . 1) (i (q . 1) (c () ()) (a (i (> 2 ()) (q) (q 8 (q . "assertion failed at expr_statements.rue:42:5"))) 1)) (a (i (> 2 ()) (q) (q 8 (q . "assertion failed at expr_statements.rue:42:5"))) 1))
   solution: (1)
   output: (())
-  runtime_cost: 1865
-  byte_cost: 804000
-  total_cost: 805865
+  runtime_cost: 1746
+  byte_cost: 780000
+  total_cost: 781746
 - name: one_wrapped_non_nil
   program: (i () (a (i (> 2 ()) (q 1 . 1) (q 8)) 1) (q . 1))
   debug_program: (i (q . 1) (q . 1) (a (i (> 2 ()) (q 1 . 1) (q 8 (q . "assertion failed at expr_statements.rue:46:5"))) 1))
@@ -56,13 +56,13 @@ tests:
   byte_cost: 852000
   total_cost: 854567
 - name: two_inserted_separate_non_nil
-  program: (i () (all (a (i (> 2 ()) (q 1 . 1) (q 8)) 1) (a (i (> 2 ()) (q 1 . 1) (q 8)) 1)) (c () ()))
+  program: (i () (all (a (i (> 2 ()) (q 1 . 1) (q 8)) 1) (a (i (> 2 ()) (q 1 . 1) (q 8)) 1)) (q ()))
   debug_program: (i (q . 1) (i (q . 1) (c () ()) (a (i (> 2 ()) (q 1 . 1) (q 8 (q . "assertion failed at expr_statements.rue:46:5"))) 1)) (a (i (> 2 ()) (q 1 . 1) (q 8 (q . "assertion failed at expr_statements.rue:46:5"))) 1))
   solution: (1)
   output: (())
-  runtime_cost: 2662
-  byte_cost: 924000
-  total_cost: 926662
+  runtime_cost: 2543
+  byte_cost: 900000
+  total_cost: 902543
 diagnostics:
 - Value returned by statement is unused at expr_statements.rue:22:5
 - Value returned by statement is unused at expr_statements.rue:27:5
