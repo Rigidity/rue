@@ -108,6 +108,12 @@ pub fn declare_function(ctx: &mut Compiler, function: &AstFunctionItem) -> Symbo
         ret: return_type,
     }));
 
+    if function.source_path().is_some() {
+        for &parameter in parameters.values() {
+            ctx.reference(Declaration::Symbol(parameter), None);
+        }
+    }
+
     let name = function.name().map(|name| ctx.local_name(&name));
 
     *ctx.symbol_mut(symbol) = Symbol::Function(FunctionSymbol {
