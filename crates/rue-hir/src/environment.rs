@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
 
 use indexmap::IndexMap;
+use num_bigint::BigUint;
 
 use crate::SymbolId;
 
@@ -16,7 +17,6 @@ pub enum Environment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PathError {
     SymbolNotFound,
-    PathTooLarge,
 }
 
 impl Environment {
@@ -93,23 +93,15 @@ impl Environment {
         )
     }
 
-    pub fn path(&self, symbol_id: SymbolId) -> Result<u32, PathError> {
+    pub fn path(&self, symbol_id: SymbolId) -> Result<BigUint, PathError> {
         let ops = self
             .get_pair_ops(symbol_id)
             .ok_or(PathError::SymbolNotFound)?;
-        let mut path: u32 = 1;
+        let mut path = BigUint::from(1u8);
         for op in ops.into_iter().rev() {
-            match op {
-                PairOp::First => {
-                    path = path.checked_mul(2).ok_or(PathError::PathTooLarge)?;
-                }
-                PairOp::Rest => {
-                    path = path
-                        .checked_mul(2)
-                        .ok_or(PathError::PathTooLarge)?
-                        .checked_add(1)
-                        .ok_or(PathError::PathTooLarge)?;
-                }
+            path <<= 1;
+            if matches!(op, PairOp::Rest) {
+                path += 1u8;
             }
         }
         Ok(path)

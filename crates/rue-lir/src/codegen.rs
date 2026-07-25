@@ -1,8 +1,9 @@
 use clvm_traits::{ToClvm, clvm_list, clvm_quote, clvm_tuple};
 use clvmr::{Allocator, NodePtr};
 use id_arena::Arena;
+use num_bigint::BigUint;
 
-use crate::{ClvmOp, Lir, LirId, Result, bigint_atom};
+use crate::{ClvmOp, Lir, LirId, Result, path_to_atom};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CodegenOptions {
@@ -41,15 +42,12 @@ fn codegen_impl(
             Ok(clvm_quote!(arg).to_clvm(allocator)?)
         }
         Lir::Path(path) => {
-            let mut atom = bigint_atom((*path).into());
-            while !atom.is_empty() && atom[0] == 0 {
-                atom = atom[1..].to_vec();
-            }
+            let atom = path_to_atom(path);
             Ok(allocator.new_atom(&atom)?)
         }
         Lir::Run(callee, env) => {
             if options.optimize_static_pairs
-                && matches!(arena[*env], Lir::Path(1))
+                && matches!(&arena[*env], Lir::Path(path) if path == &BigUint::from(1u8))
                 && is_static_value(arena, *callee)
             {
                 return codegen_static_value(arena, allocator, *callee);
@@ -503,7 +501,7 @@ mod tests {
     #[test]
     fn test_path() {
         let mut arena = Arena::new();
-        let lir = arena.alloc(Lir::Path(1));
+        let lir = arena.alloc(Lir::Path(1u8.into()));
         check(&arena, lir, expect!["1"]);
     }
 
@@ -543,7 +541,7 @@ mod tests {
         let args = arena.alloc(Lir::Cons(two, args));
         let add = arena.alloc(Lir::Atom(vec![16]));
         let program = arena.alloc(Lir::Cons(add, args));
-        let env = arena.alloc(Lir::Path(1));
+        let env = arena.alloc(Lir::Path(1u8.into()));
         let lir = arena.alloc(Lir::Run(program, env));
 
         check_with_options(
@@ -558,7 +556,7 @@ mod tests {
     #[test]
     fn test_closure() {
         let mut arena = Arena::new();
-        let path = arena.alloc(Lir::Path(2));
+        let path = arena.alloc(Lir::Path(2u8.into()));
         let add = arena.alloc(Lir::Add(vec![path, path]));
         let function = arena.alloc(Lir::Quote(add));
         let capture = arena.alloc(Lir::Atom(vec![0x10]));
@@ -609,7 +607,7 @@ mod tests {
         check(&arena, lir, expect![[r#"(c (q . "first") (q . "rest"))"#]]);
         check_with_options(&arena, lir, true, expect![[r#"(q "first" . "rest")"#]]);
 
-        let path = arena.alloc(Lir::Path(2));
+        let path = arena.alloc(Lir::Path(2u8.into()));
         let lir = arena.alloc(Lir::Cons(path, lir));
         check_with_options(
             &arena,
