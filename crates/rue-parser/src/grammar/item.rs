@@ -16,7 +16,7 @@ pub fn item(p: &mut Parser) {
     if p.at(T![mod]) && !inline && !extern_kw && !test {
         module_item(p, cp);
     } else if p.at(T![fn]) {
-        function_item(p, cp);
+        function_item(p, cp, extern_kw);
     } else if p.at(T![const]) && !extern_kw && !test {
         constant_item(p, cp);
     } else if p.at(T![type]) && !inline && !extern_kw && !test {
@@ -42,7 +42,7 @@ fn module_item(p: &mut Parser, cp: Checkpoint) {
     p.finish();
 }
 
-fn function_item(p: &mut Parser, cp: Checkpoint) {
+fn function_item(p: &mut Parser, cp: Checkpoint, extern_kw: bool) {
     p.start_at(cp, SyntaxKind::FunctionItem);
     p.expect(T![fn]);
     p.expect(SyntaxKind::Ident);
@@ -60,7 +60,11 @@ fn function_item(p: &mut Parser, cp: Checkpoint) {
     if p.try_eat(T![->]) {
         ty(p);
     }
-    if p.at(T!['{']) {
+    if extern_kw && p.at(T![from]) {
+        p.expect(T![from]);
+        p.expect(SyntaxKind::String);
+        p.expect(T![;]);
+    } else if p.at(T!['{']) {
         block(p);
     } else {
         p.error(DiagnosticKind::MissingFunctionBody);
@@ -289,6 +293,128 @@ mod tests {
                     CloseBrace@40..41 "}"
             "#]],
             expect![""],
+        );
+    }
+
+    #[test]
+    fn test_external_function_item() {
+        check(
+            item,
+            "extern fn add(a: Int, b: Int) -> Int\n    from \"./add.hex\";",
+            expect![[r#"
+                FunctionItem@0..58
+                  Extern@0..6 "extern"
+                  Whitespace@6..7 " "
+                  Fn@7..9 "fn"
+                  Whitespace@9..10 " "
+                  Ident@10..13 "add"
+                  OpenParen@13..14 "("
+                  FunctionParameter@14..20
+                    NamedBinding@14..15
+                      Ident@14..15 "a"
+                    Colon@15..16 ":"
+                    Whitespace@16..17 " "
+                    PathType@17..20
+                      PathSegment@17..20
+                        Ident@17..20 "Int"
+                  Comma@20..21 ","
+                  Whitespace@21..22 " "
+                  FunctionParameter@22..28
+                    NamedBinding@22..23
+                      Ident@22..23 "b"
+                    Colon@23..24 ":"
+                    Whitespace@24..25 " "
+                    PathType@25..28
+                      PathSegment@25..28
+                        Ident@25..28 "Int"
+                  CloseParen@28..29 ")"
+                  Whitespace@29..30 " "
+                  Arrow@30..32 "->"
+                  Whitespace@32..33 " "
+                  PathType@33..41
+                    PathSegment@33..41
+                      Ident@33..36 "Int"
+                      Whitespace@36..41 "\n    "
+                  From@41..45 "from"
+                  Whitespace@45..46 " "
+                  String@46..57 "\"./add.hex\""
+                  Semicolon@57..58 ";"
+            "#]],
+            expect![""],
+        );
+
+        check(
+            item,
+            "extern fn add(a: Int, b: Int) -> Int { a + b }",
+            expect![[r#"
+                FunctionItem@0..46
+                  Extern@0..6 "extern"
+                  Whitespace@6..7 " "
+                  Fn@7..9 "fn"
+                  Whitespace@9..10 " "
+                  Ident@10..13 "add"
+                  OpenParen@13..14 "("
+                  FunctionParameter@14..20
+                    NamedBinding@14..15
+                      Ident@14..15 "a"
+                    Colon@15..16 ":"
+                    Whitespace@16..17 " "
+                    PathType@17..20
+                      PathSegment@17..20
+                        Ident@17..20 "Int"
+                  Comma@20..21 ","
+                  Whitespace@21..22 " "
+                  FunctionParameter@22..28
+                    NamedBinding@22..23
+                      Ident@22..23 "b"
+                    Colon@23..24 ":"
+                    Whitespace@24..25 " "
+                    PathType@25..28
+                      PathSegment@25..28
+                        Ident@25..28 "Int"
+                  CloseParen@28..29 ")"
+                  Whitespace@29..30 " "
+                  Arrow@30..32 "->"
+                  Whitespace@32..33 " "
+                  PathType@33..37
+                    PathSegment@33..37
+                      Ident@33..36 "Int"
+                      Whitespace@36..37 " "
+                  Block@37..46
+                    OpenBrace@37..38 "{"
+                    Whitespace@38..39 " "
+                    BinaryExpr@39..45
+                      PathExpr@39..41
+                        PathSegment@39..41
+                          Ident@39..40 "a"
+                          Whitespace@40..41 " "
+                      Plus@41..42 "+"
+                      Whitespace@42..43 " "
+                      PathExpr@43..45
+                        PathSegment@43..45
+                          Ident@43..44 "b"
+                          Whitespace@44..45 " "
+                    CloseBrace@45..46 "}"
+            "#]],
+            expect![""],
+        );
+    }
+
+    #[test]
+    fn test_external_source_requires_extern() {
+        check(
+            item,
+            "fn add() from \"./add.hex\";",
+            expect![[r#"
+                FunctionItem@0..9
+                  Fn@0..2 "fn"
+                  Whitespace@2..3 " "
+                  Ident@3..6 "add"
+                  OpenParen@6..7 "("
+                  CloseParen@7..8 ")"
+                  Whitespace@8..9 " "
+            "#]],
+            expect!["Missing function body at main.rue:1:10"],
         );
     }
 

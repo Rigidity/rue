@@ -1,0 +1,5 @@
+extern fn external() from "./invalid_hex.hex";
+
+fn main() {
+    external()
+}

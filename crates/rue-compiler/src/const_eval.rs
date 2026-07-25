@@ -139,7 +139,7 @@ fn evaluate_const_expr(ctx: &mut Compiler, value: HirId) -> Result<Hir, ConstEva
     Ok(decode_node(ctx, &allocator, output.1))
 }
 
-fn decode_node(ctx: &mut Compiler, allocator: &Allocator, node: NodePtr) -> Hir {
+pub(crate) fn decode_node(ctx: &mut Compiler, allocator: &Allocator, node: NodePtr) -> Hir {
     match allocator.sexp(node) {
         SExp::Atom => Hir::Bytes(allocator.atom(node).to_vec()),
         SExp::Pair(first, rest) => {

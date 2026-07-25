@@ -1,0 +1,2 @@
+diagnostics:
+- 'External function contains invalid hex: Odd number of digits at invalid_hex.rue:1:27'

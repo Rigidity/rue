@@ -1,0 +1,16 @@
+extern fn external<T>(value: T, proof: Proof) -> Any
+    from "./add.hex";
+
+struct FirstProof {
+    value: Int,
+}
+
+struct SecondProof {
+    value: Bytes,
+}
+
+type Proof = FirstProof | SecondProof;
+
+fn main() -> Bytes32 {
+    const { tree_hash(external) }
+}

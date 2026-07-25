@@ -53,6 +53,9 @@ pub enum SyntaxKind {
     #[display("`extern`")]
     Extern,
 
+    #[display("`from`")]
+    From,
+
     #[display("`inline`")]
     Inline,
 
@@ -400,6 +403,7 @@ macro_rules! T {
     [import] => { $crate::SyntaxKind::Import };
     [export] => { $crate::SyntaxKind::Export };
     [extern] => { $crate::SyntaxKind::Extern };
+    [from] => { $crate::SyntaxKind::From };
     [inline] => { $crate::SyntaxKind::Inline };
     [test] => { $crate::SyntaxKind::Test };
     [mod] => { $crate::SyntaxKind::Mod };
@@ -514,6 +518,7 @@ impl SyntaxKind {
             T![import] => &[T![import]],
             T![export] => &[T![export]],
             T![extern] => &[T![extern]],
+            T![from] => &[T![from]],
             T![inline] => &[T![inline]],
             T![test] => &[T![test]],
             T![mod] => &[T![mod]],

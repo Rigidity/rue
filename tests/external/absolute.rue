@@ -1,0 +1,5 @@
+extern fn external() from "/external.hex";
+
+fn main() {
+    external()
+}

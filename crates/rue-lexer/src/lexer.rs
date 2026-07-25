@@ -55,6 +55,7 @@ impl<'a> Lexer<'a> {
             "import" => TokenKind::Import,
             "export" => TokenKind::Export,
             "extern" => TokenKind::Extern,
+            "from" => TokenKind::From,
             "inline" => TokenKind::Inline,
             "test" => TokenKind::Test,
             "mod" => TokenKind::Mod,
@@ -550,6 +551,13 @@ mod tests {
             "extern",
             expect![[r#"
                 Extern
+            "#]],
+        );
+
+        check(
+            "from",
+            expect![[r#"
+                From
             "#]],
         );
 

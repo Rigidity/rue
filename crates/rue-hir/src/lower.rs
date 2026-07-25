@@ -135,6 +135,11 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
 
         let mut expr = self.lower_hir(&function_env, function.body);
 
+        if symbol == self.main && function.kind == FunctionKind::External {
+            let entire_env = self.arena.alloc(Lir::Path(1));
+            return self.arena.alloc(Lir::Run(expr, entire_env));
+        }
+
         if symbol == self.main {
             let mut map = HashMap::new();
 
@@ -171,6 +176,8 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                 expr = self.arena.alloc(Lir::Run(expr, group_env));
             }
 
+            expr
+        } else if function.kind == FunctionKind::External {
             expr
         } else {
             self.arena.alloc(Lir::Quote(expr))
@@ -485,7 +492,9 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
             self.lower_symbol_reference(env, symbol)
         };
 
-        if let Symbol::Function(function) = self.db.symbol(symbol).clone() {
+        if let Symbol::Function(function) = self.db.symbol(symbol).clone()
+            && function.kind != FunctionKind::External
+        {
             let captures: Vec<SymbolId> = self
                 .graph
                 .dependencies(symbol, true)
@@ -902,6 +911,10 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                 false
             }
             Symbol::Function(function) => {
+                if function.kind == FunctionKind::External {
+                    return false;
+                }
+
                 if self.graph.dependencies(symbol, false).contains(&symbol) {
                     return false;
                 }

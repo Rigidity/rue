@@ -1,0 +1,5 @@
+extern fn external() from "./missing.hex";
+
+fn main() {
+    external()
+}
