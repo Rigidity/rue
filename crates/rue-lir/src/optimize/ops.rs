@@ -1,7 +1,7 @@
 use std::num::Saturating;
 
 use id_arena::Arena;
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
@@ -18,7 +18,7 @@ pub fn opt_atom(arena: &mut Arena<Lir>, atom: Vec<u8>) -> LirId {
 }
 
 // There's no way to optimize a path
-pub fn opt_path(arena: &mut Arena<Lir>, path: u32) -> LirId {
+pub fn opt_path(arena: &mut Arena<Lir>, path: BigUint) -> LirId {
     arena.alloc(Lir::Path(path))
 }
 
@@ -32,7 +32,9 @@ pub fn opt_quote(arena: &mut Arena<Lir>, value: LirId) -> LirId {
 // We can also skip quoting if the program has no path, since it's not going to rely on the environment
 pub fn opt_run(arena: &mut Arena<Lir>, callee: LirId, env: LirId) -> LirId {
     if let Lir::Quote(value) = arena[callee].clone() {
-        if let Lir::Path(1) = arena[env].clone() {
+        if let Lir::Path(path) = arena[env].clone()
+            && path == BigUint::from(1u8)
+        {
             return value;
         }
 
@@ -66,7 +68,7 @@ pub fn opt_closure(
 // If the value is a divmod, we can optimize it to a div since that's the first output
 pub fn opt_first(arena: &mut Arena<Lir>, value: LirId) -> LirId {
     match arena[value].clone() {
-        Lir::Path(path) => arena.alloc(Lir::Path(first_path(path))),
+        Lir::Path(path) => arena.alloc(Lir::Path(first_path(&path))),
         Lir::Divmod(left, right) => opt_div(arena, left, right),
         _ => arena.alloc(Lir::First(value)),
     }
@@ -77,7 +79,7 @@ pub fn opt_first(arena: &mut Arena<Lir>, value: LirId) -> LirId {
 // If the value is a divmod, we can optimize it to a remainder since that's the rest output
 pub fn opt_rest(arena: &mut Arena<Lir>, value: LirId) -> LirId {
     match arena[value].clone() {
-        Lir::Path(path) => arena.alloc(Lir::Path(rest_path(path))),
+        Lir::Path(path) => arena.alloc(Lir::Path(rest_path(&path))),
         Lir::Divmod(left, right) => opt_mod(arena, left, right),
         _ => arena.alloc(Lir::Rest(value)),
     }
@@ -87,10 +89,10 @@ pub fn opt_rest(arena: &mut Arena<Lir>, value: LirId) -> LirId {
 pub fn opt_cons(arena: &mut Arena<Lir>, first: LirId, rest: LirId) -> LirId {
     if let Lir::Path(f_path) = arena[first].clone()
         && let Lir::Path(r_path) = arena[rest].clone()
-        && let Some(parent) = parent_path(f_path)
-        && Some(parent) == parent_path(r_path)
-        && first_path(parent) == f_path
-        && rest_path(parent) == r_path
+        && let Some(parent) = parent_path(&f_path)
+        && parent_path(&r_path).as_ref() == Some(&parent)
+        && first_path(&parent) == f_path
+        && rest_path(&parent) == r_path
     {
         return arena.alloc(Lir::Path(parent));
     }

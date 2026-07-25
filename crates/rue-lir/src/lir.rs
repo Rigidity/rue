@@ -1,6 +1,7 @@
 use clvm_traits::{ToClvm, ToClvmError};
 use clvmr::{Allocator, NodePtr};
 use id_arena::Id;
+use num_bigint::BigUint;
 
 use crate::bigint_atom;
 
@@ -9,7 +10,7 @@ pub type LirId = Id<Lir>;
 #[derive(Debug, Clone)]
 pub enum Lir {
     Atom(Vec<u8>),
-    Path(u32),
+    Path(BigUint),
     Quote(LirId),
     Run(LirId, LirId),
     Closure(LirId, Vec<LirId>, bool),

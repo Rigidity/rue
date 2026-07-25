@@ -136,7 +136,7 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
         let mut expr = self.lower_hir(&function_env, function.body);
 
         if symbol == self.main && function.kind == FunctionKind::External {
-            let entire_env = self.arena.alloc(Lir::Path(1));
+            let entire_env = self.arena.alloc(Lir::Path(1u8.into()));
             return self.arena.alloc(Lir::Run(expr, entire_env));
         }
 
@@ -151,7 +151,7 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
             {
                 map.insert(symbol, self.arena.alloc(Lir::Quote(expr)));
                 let reference = self.lower_symbol_reference(&function_env, symbol);
-                let entire_env = self.arena.alloc(Lir::Path(1));
+                let entire_env = self.arena.alloc(Lir::Path(1u8.into()));
                 expr = self.arena.alloc(Lir::Run(reference, entire_env));
             }
 
@@ -167,7 +167,7 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                 let rest = if param_group.is_empty() {
                     self.arena.alloc(Lir::Atom(vec![]))
                 } else {
-                    self.arena.alloc(Lir::Path(1))
+                    self.arena.alloc(Lir::Path(1u8.into()))
                 };
 
                 let group_env =
@@ -525,10 +525,6 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                     "clvm path in environment not found for symbol {}",
                     self.db.debug_symbol(symbol)
                 ),
-                PathError::PathTooLarge => panic!(
-                    "calculated clvm path too large for symbol {}",
-                    self.db.debug_symbol(symbol)
-                ),
             },
         )))
     }
@@ -598,7 +594,7 @@ impl<'d, 'a, 'g> Lowerer<'d, 'a, 'g> {
                 bind_env = Self::apply_group(bind_env, group, true);
             }
 
-            let rest = self.arena.alloc(Lir::Path(1));
+            let rest = self.arena.alloc(Lir::Path(1u8.into()));
             let group_env = self.lower_group_environment(&bind_env, group, rest, false, None, true);
 
             expr = self.arena.alloc(Lir::Run(expr, group_env));
