@@ -17,6 +17,10 @@ use rue_options::CompilerOptions;
 use crate::Compiler;
 
 pub(crate) fn evaluate_const_exprs(ctx: &mut Compiler) {
+    if ctx.has_errors() {
+        return;
+    }
+
     let const_exprs = ctx
         .const_exprs()
         .filter_map(|hir| match ctx.hir(hir) {

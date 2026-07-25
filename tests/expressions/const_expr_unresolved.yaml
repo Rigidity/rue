@@ -1,0 +1,2 @@
+diagnostics:
+- Undeclared symbol `missing` at const_expr_unresolved.rue:2:13
