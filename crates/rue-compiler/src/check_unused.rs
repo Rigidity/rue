@@ -213,6 +213,25 @@ pub fn check_unused(ctx: &mut Compiler, entrypoints: &HashSet<Declaration>) {
                     }
                 }
                 Symbol::Parameter(ParameterSymbol { name, .. }) => {
+                    let external = ctx
+                        .declaration_parents(declaration)
+                        .into_iter()
+                        .any(|parent| {
+                            let Declaration::Symbol(parent) = parent else {
+                                return false;
+                            };
+                            matches!(
+                                ctx.symbol(parent),
+                                Symbol::Function(FunctionSymbol {
+                                    kind: FunctionKind::External,
+                                    ..
+                                })
+                            )
+                        });
+                    if external {
+                        continue;
+                    }
+
                     if let Some(name) = name {
                         if name.text().starts_with('_') {
                             continue;

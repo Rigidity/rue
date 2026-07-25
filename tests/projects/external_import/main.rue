@@ -1,0 +1,23 @@
+import nested::helper::add_nested;
+
+extern fn add(a: Int, b: Int) -> Int
+    from "./add.hex";
+
+extern fn add_again(a: Int, b: Int) -> Int
+    from "./add.hex";
+
+test fn call_external() -> Int {
+    add(20, 22)
+}
+
+test fn call_nested_external() -> Int {
+    add_nested(20, 22)
+}
+
+test fn call_repeated_external() -> Int {
+    add_again(20, 22)
+}
+
+test fn external_tree_hash() -> Bytes32 {
+    tree_hash(add)
+}

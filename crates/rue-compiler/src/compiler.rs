@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
     mem,
     ops::{Deref, DerefMut, Range},
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -34,6 +35,7 @@ pub struct Compiler {
     defaults: HashMap<TypeId, HashMap<String, Value>>,
     declaration_stack: Vec<Declaration>,
     registered_scopes: HashSet<ScopeId>,
+    external_programs: HashMap<PathBuf, Vec<u8>>,
 }
 
 impl Deref for Compiler {
@@ -68,6 +70,7 @@ impl Compiler {
             defaults: HashMap::new(),
             declaration_stack: Vec::new(),
             registered_scopes: HashSet::new(),
+            external_programs: HashMap::new(),
         };
 
         if options.std {
@@ -110,6 +113,14 @@ impl Compiler {
 
     pub fn options(&self) -> &CompilerOptions {
         &self.options
+    }
+
+    pub(crate) fn external_program(&self, path: &Path) -> Option<&[u8]> {
+        self.external_programs.get(path).map(Vec::as_slice)
+    }
+
+    pub(crate) fn cache_external_program(&mut self, path: PathBuf, program: Vec<u8>) {
+        self.external_programs.insert(path, program);
     }
 
     pub fn set_source(&mut self, source: Source) {

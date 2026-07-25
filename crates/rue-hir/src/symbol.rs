@@ -65,6 +65,7 @@ pub struct FunctionSymbol {
 pub enum FunctionKind {
     BinaryTree,
     Sequential,
+    External,
     Inline,
 }
 

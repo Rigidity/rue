@@ -1,0 +1,2 @@
+export extern fn add_nested(a: Int, b: Int) -> Int
+    from "../add.hex";

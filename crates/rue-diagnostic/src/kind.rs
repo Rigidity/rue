@@ -28,6 +28,24 @@ pub enum DiagnosticKind {
     #[error("Missing function body")]
     MissingFunctionBody,
 
+    #[error("External function paths must be relative")]
+    AbsoluteExternalPath,
+
+    #[error("External function path must have a `.hex` extension")]
+    InvalidExternalExtension,
+
+    #[error("External functions cannot be loaded from this source")]
+    ExternalFromNonFileSource,
+
+    #[error("Failed to read external function: {0}")]
+    ExternalFileRead(String),
+
+    #[error("External function contains invalid hex: {0}")]
+    InvalidExternalHex(String),
+
+    #[error("External function contains invalid CLVM: {0}")]
+    InvalidExternalClvm(String),
+
     #[error("Duplicate symbol `{0}` found in scope")]
     DuplicateSymbol(String),
 
@@ -257,6 +275,12 @@ impl DiagnosticKind {
             | Self::UnterminatedBinary
             | Self::UnterminatedOctal
             | Self::MissingFunctionBody
+            | Self::AbsoluteExternalPath
+            | Self::InvalidExternalExtension
+            | Self::ExternalFromNonFileSource
+            | Self::ExternalFileRead(..)
+            | Self::InvalidExternalHex(..)
+            | Self::InvalidExternalClvm(..)
             | Self::DuplicateSymbol(..)
             | Self::DuplicateType(..)
             | Self::UndeclaredSymbol(..)

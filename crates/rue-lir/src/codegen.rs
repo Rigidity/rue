@@ -48,6 +48,13 @@ fn codegen_impl(
             Ok(allocator.new_atom(&atom)?)
         }
         Lir::Run(callee, env) => {
+            if options.optimize_static_pairs
+                && matches!(arena[*env], Lir::Path(1))
+                && is_static_value(arena, *callee)
+            {
+                return codegen_static_value(arena, allocator, *callee);
+            }
+
             let callee = codegen(arena, allocator, *callee)?;
             let env = codegen(arena, allocator, *env)?;
             Ok(clvm_list!(ClvmOp::Apply, callee, env).to_clvm(allocator)?)
@@ -524,6 +531,28 @@ mod tests {
             lir,
             expect!["(a (q . 97) (c (q . 98) (c (q . 99) ())))"],
         );
+    }
+
+    #[test]
+    fn test_run_static_program_with_entire_env() {
+        let mut arena = Arena::new();
+        let nil = arena.alloc(Lir::Atom(Vec::new()));
+        let five = arena.alloc(Lir::Atom(vec![5]));
+        let args = arena.alloc(Lir::Cons(five, nil));
+        let two = arena.alloc(Lir::Atom(vec![2]));
+        let args = arena.alloc(Lir::Cons(two, args));
+        let add = arena.alloc(Lir::Atom(vec![16]));
+        let program = arena.alloc(Lir::Cons(add, args));
+        let env = arena.alloc(Lir::Path(1));
+        let lir = arena.alloc(Lir::Run(program, env));
+
+        check_with_options(
+            &arena,
+            lir,
+            false,
+            expect!["(a (c (q . 16) (c (q . 2) (c (q . 5) ()))) 1)"],
+        );
+        check_with_options(&arena, lir, true, expect!["(+ 2 5)"]);
     }
 
     #[test]

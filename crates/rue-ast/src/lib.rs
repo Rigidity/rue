@@ -232,6 +232,13 @@ impl AstFunctionItem {
         self.syntax().children().find_map(AstType::cast)
     }
 
+    pub fn source_path(&self) -> Option<SyntaxToken> {
+        self.syntax()
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|token| token.kind() == SyntaxKind::String)
+    }
+
     pub fn body(&self) -> Option<AstBlock> {
         self.syntax().children().find_map(AstBlock::cast)
     }

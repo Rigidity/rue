@@ -1,13 +1,19 @@
+use std::{fs, path::Path};
+
+use clvmr::{Allocator, serde::node_from_bytes};
 use indexmap::IndexMap;
 use log::debug;
 use rue_ast::{AstFunctionItem, AstNode};
-use rue_diagnostic::DiagnosticKind;
-use rue_hir::{Declaration, FunctionKind, FunctionSymbol, ParameterSymbol, Symbol, SymbolId, Test};
+use rue_diagnostic::{DiagnosticKind, SourceKind};
+use rue_hir::{
+    Declaration, FunctionKind, FunctionSymbol, HirId, ParameterSymbol, Symbol, SymbolId, Test,
+};
+use rue_parser::SyntaxToken;
 use rue_types::{FunctionType, Type};
 
 use crate::{
     Compiler, CompletionContext, SyntaxItemKind, compile_block, compile_generic_parameters,
-    compile_type, create_binding,
+    compile_type, const_eval::decode_node, create_binding,
 };
 
 pub fn declare_function(ctx: &mut Compiler, function: &AstFunctionItem) -> SymbolId {
@@ -115,6 +121,8 @@ pub fn declare_function(ctx: &mut Compiler, function: &AstFunctionItem) -> Symbo
         body,
         kind: if function.inline().is_some() {
             FunctionKind::Inline
+        } else if function.source_path().is_some() {
+            FunctionKind::External
         } else if function.extern_kw().is_some() {
             FunctionKind::Sequential
         } else {
@@ -172,7 +180,9 @@ pub fn compile_function(ctx: &mut Compiler, function: &AstFunctionItem, symbol: 
         ctx.pop_declaration();
     }
 
-    let resolved_body = if let Some(body) = function.body() {
+    let resolved_body = if let Some(source_path) = function.source_path() {
+        compile_external_function(ctx, &source_path)
+    } else if let Some(body) = function.body() {
         let value = compile_block(
             ctx,
             &body,
@@ -181,10 +191,10 @@ pub fn compile_function(ctx: &mut Compiler, function: &AstFunctionItem, symbol: 
             function.return_type().is_some(),
         );
         ctx.assign_type(body.syntax(), value.ty, return_type);
-        value
+        value.hir
     } else {
         debug!("Unresolved function body");
-        ctx.builtins().unresolved.clone()
+        ctx.builtins().unresolved.hir
     };
 
     ctx.pop_scope(range.end());
@@ -193,7 +203,97 @@ pub fn compile_function(ctx: &mut Compiler, function: &AstFunctionItem, symbol: 
         unreachable!();
     };
 
-    *body = resolved_body.hir;
+    *body = resolved_body;
 
     ctx.pop_declaration();
+}
+
+fn compile_external_function(ctx: &mut Compiler, source_path: &SyntaxToken) -> HirId {
+    let unresolved = ctx.builtins().unresolved.hir;
+    let path_text = source_path
+        .text()
+        .strip_prefix('"')
+        .and_then(|path| path.strip_suffix('"'))
+        .unwrap_or(source_path.text());
+    let relative_path = Path::new(path_text);
+
+    if relative_path.is_absolute() {
+        ctx.diagnostic(source_path, DiagnosticKind::AbsoluteExternalPath);
+        return unresolved;
+    }
+
+    if relative_path
+        .extension()
+        .is_none_or(|extension| extension != "hex")
+    {
+        ctx.diagnostic(source_path, DiagnosticKind::InvalidExternalExtension);
+        return unresolved;
+    }
+
+    let SourceKind::File(source_file) = &ctx.source().kind else {
+        ctx.diagnostic(source_path, DiagnosticKind::ExternalFromNonFileSource);
+        return unresolved;
+    };
+    let Some(parent) = Path::new(source_file).parent() else {
+        ctx.diagnostic(source_path, DiagnosticKind::ExternalFromNonFileSource);
+        return unresolved;
+    };
+    let unresolved_path = parent.join(relative_path);
+    let resolved_path = match unresolved_path.canonicalize() {
+        Ok(path) => path,
+        Err(error) => {
+            ctx.diagnostic(
+                source_path,
+                DiagnosticKind::ExternalFileRead(format!("{path_text}: {error}")),
+            );
+            return unresolved;
+        }
+    };
+
+    let (bytes, should_cache) = if let Some(bytes) = ctx.external_program(&resolved_path) {
+        (bytes.to_vec(), false)
+    } else {
+        let contents = match fs::read_to_string(&resolved_path) {
+            Ok(contents) => contents,
+            Err(error) => {
+                ctx.diagnostic(
+                    source_path,
+                    DiagnosticKind::ExternalFileRead(format!("{path_text}: {error}")),
+                );
+                return unresolved;
+            }
+        };
+        let hex = contents
+            .chars()
+            .filter(|character| !character.is_ascii_whitespace())
+            .collect::<String>();
+        let bytes = match hex::decode(hex) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                ctx.diagnostic(
+                    source_path,
+                    DiagnosticKind::InvalidExternalHex(error.to_string()),
+                );
+                return unresolved;
+            }
+        };
+        (bytes, true)
+    };
+
+    let mut allocator = Allocator::new();
+    let program = match node_from_bytes(&mut allocator, &bytes) {
+        Ok(program) => program,
+        Err(error) => {
+            ctx.diagnostic(
+                source_path,
+                DiagnosticKind::InvalidExternalClvm(error.to_string()),
+            );
+            return unresolved;
+        }
+    };
+    if should_cache {
+        ctx.cache_external_program(resolved_path, bytes);
+    }
+    let hir = decode_node(ctx, &allocator, program);
+    ctx.alloc_hir(hir)
 }

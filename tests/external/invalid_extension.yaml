@@ -1,0 +1,2 @@
+diagnostics:
+- External function path must have a `.hex` extension at invalid_extension.rue:1:27

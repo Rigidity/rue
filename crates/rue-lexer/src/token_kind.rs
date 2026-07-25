@@ -19,6 +19,7 @@ pub enum TokenKind {
     Import,
     Export,
     Extern,
+    From,
     Inline,
     Test,
     Mod,

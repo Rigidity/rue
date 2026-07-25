@@ -92,6 +92,7 @@ impl Parser {
                 TokenKind::Import => T![import],
                 TokenKind::Export => T![export],
                 TokenKind::Extern => T![extern],
+                TokenKind::From => T![from],
                 TokenKind::Inline => T![inline],
                 TokenKind::Test => T![test],
                 TokenKind::Mod => T![mod],
