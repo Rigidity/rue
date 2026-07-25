@@ -14,8 +14,8 @@ use rowan::{TextRange, TextSize};
 use rue_ast::{AstDocument, AstNode};
 use rue_diagnostic::{Name, Source, SourceKind};
 use rue_hir::{
-    Declaration, DependencyGraph, Environment, Lowerer, ModuleDeclarations, ModuleSymbol, Scope,
-    ScopeId, Symbol, SymbolId,
+    Declaration, DependencyGraph, Environment, Lowerer, LoweringMode, ModuleDeclarations,
+    ModuleSymbol, Scope, ScopeId, Symbol, SymbolId,
 };
 use rue_lexer::Lexer;
 use rue_lir::CodegenOptions;
@@ -41,6 +41,9 @@ pub enum Error {
 
     #[error("UTF-8 conversion error: {0}")]
     Utf8(#[from] FromUtf8Error),
+
+    #[error("Cannot generate code while compilation errors are present")]
+    CompilationFailed,
 }
 
 #[derive(Debug, Clone)]
@@ -715,11 +718,23 @@ fn codegen(
     symbol: SymbolId,
     base_path: PathBuf,
 ) -> Result<NodePtr, Error> {
+    if ctx.has_errors() {
+        return Err(Error::CompilationFailed);
+    }
+
     let options = *ctx.options();
     let graph = DependencyGraph::build(ctx, symbol, options);
 
     let mut arena = Arena::new();
-    let mut lowerer = Lowerer::new(ctx, &mut arena, &graph, options, symbol, base_path);
+    let mut lowerer = Lowerer::new(
+        ctx,
+        &mut arena,
+        &graph,
+        options,
+        LoweringMode::Program,
+        symbol,
+        base_path,
+    );
     let mut lir = lowerer.lower_symbol_value(&Environment::default(), symbol);
 
     if options.optimize_lir {

@@ -1,4 +1,11 @@
 tests:
+- name: forward_const_function
+  program: (q . 42)
+  debug_program: (q . 42)
+  output: '42'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
 - name: literal
   program: (q . 3)
   debug_program: (q . 3)

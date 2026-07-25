@@ -1,5 +1,13 @@
 const BASE: Int = 5;
 
+test fn forward_const_function() -> Int {
+    const { later_const() }
+}
+
+fn later_const() -> Int {
+    const { 42 }
+}
+
 fn double(value: Int) -> Int {
     value * 2
 }

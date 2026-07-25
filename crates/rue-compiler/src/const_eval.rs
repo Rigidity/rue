@@ -9,7 +9,8 @@ use id_arena::Arena;
 use indexmap::IndexMap;
 use rue_diagnostic::DiagnosticKind;
 use rue_hir::{
-    DependencyGraph, Environment, FunctionKind, FunctionSymbol, Hir, HirId, Lowerer, Symbol,
+    DependencyGraph, Environment, FunctionKind, FunctionSymbol, Hir, HirId, Lowerer, LoweringMode,
+    Symbol,
 };
 use rue_lir::{CodegenOptions, codegen, optimize};
 use rue_options::CompilerOptions;
@@ -103,7 +104,15 @@ fn evaluate_const_expr(ctx: &mut Compiler, value: HirId) -> Result<Hir, ConstEva
 
     let mut arena = Arena::new();
     let lir = {
-        let mut lowerer = Lowerer::new(ctx, &mut arena, &graph, options, root, PathBuf::new());
+        let mut lowerer = Lowerer::new(
+            ctx,
+            &mut arena,
+            &graph,
+            options,
+            LoweringMode::ConstEval,
+            root,
+            PathBuf::new(),
+        );
         lowerer.lower_symbol_value(&Environment::default(), root)
     };
     let lir = optimize(&mut arena, lir);
