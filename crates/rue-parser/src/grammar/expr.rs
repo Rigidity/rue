@@ -78,6 +78,11 @@ pub fn expr_with(p: &mut Parser, checkpoint: Checkpoint, options: ExprOptions) -
         p.start(SyntaxKind::LiteralExpr);
         p.expect(kind);
         p.finish();
+    } else if !options.inline && p.at(T![const]) {
+        p.start_at(checkpoint, SyntaxKind::ConstExpr);
+        p.expect(T![const]);
+        block(p);
+        p.finish();
     } else if !options.inline && p.at(T!['(']) {
         p.expect(T!['(']);
         expr(p);
@@ -500,6 +505,93 @@ mod tests {
                   CloseBrace@3..4 "}"
             "#]],
             expect![],
+        );
+    }
+
+    #[test]
+    fn test_const_expr() {
+        check(
+            expr,
+            "const { let value = 1; value + 2 }",
+            expect![[r#"
+                ConstExpr@0..34
+                  Const@0..5 "const"
+                  Whitespace@5..6 " "
+                  Block@6..34
+                    OpenBrace@6..7 "{"
+                    Whitespace@7..8 " "
+                    LetStmt@8..22
+                      Let@8..11 "let"
+                      Whitespace@11..12 " "
+                      NamedBinding@12..17
+                        Ident@12..17 "value"
+                      Whitespace@17..18 " "
+                      Assign@18..19 "="
+                      Whitespace@19..20 " "
+                      LiteralExpr@20..21
+                        Integer@20..21 "1"
+                      Semicolon@21..22 ";"
+                    Whitespace@22..23 " "
+                    BinaryExpr@23..33
+                      PathExpr@23..29
+                        PathSegment@23..29
+                          Ident@23..28 "value"
+                          Whitespace@28..29 " "
+                      Plus@29..30 "+"
+                      Whitespace@30..31 " "
+                      LiteralExpr@31..32
+                        Integer@31..32 "2"
+                      Whitespace@32..33 " "
+                    CloseBrace@33..34 "}"
+            "#]],
+            expect![""],
+        );
+
+        check(
+            expr,
+            "const { const { 1 + 2 } }",
+            expect![[r#"
+                ConstExpr@0..25
+                  Const@0..5 "const"
+                  Whitespace@5..6 " "
+                  Block@6..25
+                    OpenBrace@6..7 "{"
+                    Whitespace@7..8 " "
+                    ConstExpr@8..23
+                      Const@8..13 "const"
+                      Whitespace@13..14 " "
+                      Block@14..23
+                        OpenBrace@14..15 "{"
+                        Whitespace@15..16 " "
+                        BinaryExpr@16..22
+                          LiteralExpr@16..17
+                            Integer@16..17 "1"
+                          Whitespace@17..18 " "
+                          Plus@18..19 "+"
+                          Whitespace@19..20 " "
+                          LiteralExpr@20..21
+                            Integer@20..21 "2"
+                          Whitespace@21..22 " "
+                        CloseBrace@22..23 "}"
+                    Whitespace@23..24 " "
+                    CloseBrace@24..25 "}"
+            "#]],
+            expect![""],
+        );
+
+        check(
+            expr,
+            "const 42",
+            expect![[r#"
+            ConstExpr@0..6
+              Const@0..5 "const"
+              Whitespace@5..6 " "
+              Block@6..6
+        "#]],
+            expect![[r#"
+            Expected `{`, found integer literal at main.rue:1:7
+            Expected one of `}`, `inline`, `let`, `return`, `assert`, `raise`, `debug`, `!`, `-`, `+`, `~`, `::`, identifier, `super`, string literal, hex literal, binary literal, octal literal, integer literal, `nil`, `true`, `false`, `const`, `(`, `[`, `{`, `if`, `fn`, found eof at main.rue:1:9
+            Expected one of `;`, `}`, found eof at main.rue:1:9"#]],
         );
     }
 

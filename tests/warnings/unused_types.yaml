@@ -1,24 +1,24 @@
-program: (c (q . 34) (q . 42))
+program: (q 34 . 42)
 debug_program: (c (q . 34) (q . 42))
 output: (all . 42)
-runtime_cost: 91
-byte_cost: 132000
-total_cost: 132091
+runtime_cost: 20
+byte_cost: 60000
+total_cost: 60020
 tests:
 - name: alias
-  program: (f (c (q . 42) ()))
+  program: (f (q 42))
   debug_program: (a (q 5 (c 2 ())) (c (q . 42) ()))
   output: '42'
-  runtime_cost: 146
-  byte_cost: 156000
-  total_cost: 156146
+  runtime_cost: 51
+  byte_cost: 108000
+  total_cost: 108051
 - name: nested
-  program: (c (c (q . 42) ()) (c (q . 42) ()))
+  program: (q (42) 42)
   debug_program: (a (q 4 (c 6 ()) (c 4 ())) (c (c (q . 42) (q . 42)) ()))
   output: ((42) 42)
-  runtime_cost: 281
-  byte_cost: 276000
-  total_cost: 276281
+  runtime_cost: 20
+  byte_cost: 108000
+  total_cost: 108020
 - name: recursive
   program: ()
   debug_program: ()

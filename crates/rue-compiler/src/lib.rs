@@ -1,6 +1,7 @@
 mod check_unused;
 mod compile;
 mod compiler;
+mod const_eval;
 mod file;
 mod syntax_map;
 

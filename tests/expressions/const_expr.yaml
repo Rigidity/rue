@@ -1,0 +1,71 @@
+tests:
+- name: forward_const_function
+  program: (q . 42)
+  debug_program: (q . 42)
+  output: '42'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: literal
+  program: (q . 3)
+  debug_program: (q . 3)
+  output: '3'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: block
+  program: (q . 42)
+  debug_program: (q . 42)
+  output: '42'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: pair
+  program: (q 1 . 2)
+  debug_program: (c (q . 1) (q . 2))
+  output: (q . 2)
+  runtime_cost: 20
+  byte_cost: 60000
+  total_cost: 60020
+- name: list
+  program: (q 1 2 3)
+  debug_program: (c (q . 1) (c (q . 2) (c (q . 3) ())))
+  output: (q 2 3)
+  runtime_cost: 20
+  byte_cost: 108000
+  total_cost: 108020
+- name: const_item
+  program: (q . 10)
+  debug_program: (q . 10)
+  output: '10'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: function
+  program: (q . 10)
+  debug_program: (q . 10)
+  output: '10'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: recursive_function
+  program: (q . 120)
+  debug_program: (q . 120)
+  output: '120'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: nested
+  program: (q . 6)
+  debug_program: (q . 6)
+  output: '6'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020
+- name: debug_effect
+  program: (q . 1)
+  debug_program: (q . 1)
+  output: '1'
+  runtime_cost: 20
+  byte_cost: 36000
+  total_cost: 36020

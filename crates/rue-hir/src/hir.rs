@@ -16,6 +16,7 @@ pub enum Hir {
     Bytes(Vec<u8>),
     Bool(bool),
     Pair(HirId, HirId),
+    Const(ConstExpr),
     Reference(SymbolId),
     Block(Block),
     Lambda(SymbolId),
@@ -35,6 +36,12 @@ pub enum Hir {
     InfinityG1,
     InfinityG2,
     ClvmOp(ClvmOp, HirId),
+}
+
+#[derive(Debug, Clone)]
+pub struct ConstExpr {
+    pub value: HirId,
+    pub loc: SrcLoc,
 }
 
 #[derive(Debug, Clone)]

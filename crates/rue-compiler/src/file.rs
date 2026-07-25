@@ -14,16 +14,18 @@ use rowan::{TextRange, TextSize};
 use rue_ast::{AstDocument, AstNode};
 use rue_diagnostic::{Name, Source, SourceKind};
 use rue_hir::{
-    Declaration, DependencyGraph, Environment, Lowerer, ModuleDeclarations, ModuleSymbol, Scope,
-    ScopeId, Symbol, SymbolId,
+    Declaration, DependencyGraph, Environment, Lowerer, LoweringMode, ModuleDeclarations,
+    ModuleSymbol, Scope, ScopeId, Symbol, SymbolId,
 };
 use rue_lexer::Lexer;
+use rue_lir::CodegenOptions;
 use rue_parser::Parser;
 use thiserror::Error;
 
 use crate::{
     Compiler, ImportCache, SyntaxItemKind, check_unused, compile_symbol_items, compile_type_items,
-    declare_module_items, declare_symbol_items, declare_type_items, resolve_imports,
+    const_eval::evaluate_const_exprs, declare_module_items, declare_symbol_items,
+    declare_type_items, resolve_imports,
 };
 
 #[derive(Debug, Error)]
@@ -39,6 +41,9 @@ pub enum Error {
 
     #[error("UTF-8 conversion error: {0}")]
     Utf8(#[from] FromUtf8Error),
+
+    #[error("Cannot generate code while compilation errors are present")]
+    CompilationFailed,
 }
 
 #[derive(Debug, Clone)]
@@ -271,6 +276,7 @@ impl FileTree {
 
         self.compile_types(ctx);
         self.compile_symbols(ctx);
+        evaluate_const_exprs(ctx);
 
         if unused_check {
             let entrypoints = self.entrypoints(ctx);
@@ -712,16 +718,35 @@ fn codegen(
     symbol: SymbolId,
     base_path: PathBuf,
 ) -> Result<NodePtr, Error> {
+    if ctx.has_errors() {
+        return Err(Error::CompilationFailed);
+    }
+
     let options = *ctx.options();
     let graph = DependencyGraph::build(ctx, symbol, options);
 
     let mut arena = Arena::new();
-    let mut lowerer = Lowerer::new(ctx, &mut arena, &graph, options, symbol, base_path);
+    let mut lowerer = Lowerer::new(
+        ctx,
+        &mut arena,
+        &graph,
+        options,
+        LoweringMode::Program,
+        symbol,
+        base_path,
+    );
     let mut lir = lowerer.lower_symbol_value(&Environment::default(), symbol);
 
     if options.optimize_lir {
         lir = rue_lir::optimize(&mut arena, lir);
     }
 
-    Ok(rue_lir::codegen(&arena, allocator, lir)?)
+    Ok(rue_lir::codegen(
+        &arena,
+        allocator,
+        lir,
+        CodegenOptions {
+            optimize_static_pairs: options.optimize_static_pairs,
+        },
+    )?)
 }

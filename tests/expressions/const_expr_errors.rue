@@ -1,0 +1,14 @@
+test fn parameter(value: Int) -> Int {
+    const { value + 1 }
+}
+
+test fn outer_binding() -> Int {
+    let value = 1;
+    const { value + 1 }
+}
+
+test fn raises() -> Int {
+    const {
+        raise 42;
+    }
+}

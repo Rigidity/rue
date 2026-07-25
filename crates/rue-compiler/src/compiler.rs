@@ -8,7 +8,9 @@ use std::{
 
 use rowan::{TextRange, TextSize};
 use rue_ast::AstNode;
-use rue_diagnostic::{Diagnostic, DiagnosticKind, Name, Source, SourceKind, SrcLoc};
+use rue_diagnostic::{
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, Name, Source, SourceKind, SrcLoc,
+};
 use rue_hir::{
     Builtins, Constraint, Database, Declaration, ImportId, Scope, ScopeId, Symbol, SymbolId,
     TypePath, Value, replace_type,
@@ -138,6 +140,12 @@ impl Compiler {
 
     pub fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
         mem::take(&mut self.diagnostics)
+    }
+
+    pub fn has_errors(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind.severity() == DiagnosticSeverity::Error)
     }
 
     pub fn builtins(&self) -> &Builtins {
