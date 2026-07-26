@@ -86,6 +86,24 @@ fn nested_import_comments_have_stable_owners() {
 }
 
 #[test]
+fn nested_group_banners_stay_with_the_opener() {
+    check(
+        "import root::{\n// group banner\n// group banner\n\n// zeta docs\nzeta,\n// alpha docs\nalpha};",
+        expect![[r#"
+            import root::{
+                // group banner
+                // group banner
+
+                // alpha docs
+                alpha,
+                // zeta docs
+                zeta,
+            };
+        "#]],
+    );
+}
+
+#[test]
 fn duplicate_identical_comments_are_preserved_per_import() {
     check(
         "// docs\nimport zeta;\n// docs\nimport alpha;",

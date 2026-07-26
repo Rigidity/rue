@@ -83,3 +83,38 @@ pub(crate) fn split_file_header(gap: &Gap) -> (Trivia, Trivia) {
     }
     (Trivia::new(header), Trivia::new(leading))
 }
+
+/// Splits trivia after an import-group opener. Inline opener comments and
+/// standalone banner blocks stay dangling on `{`; only the closest comment
+/// block without a blank line before the first path becomes path documentation.
+pub(crate) fn split_group_opening(gap: &Gap) -> (Trivia, Trivia) {
+    let trailing_count = gap
+        .comments
+        .iter()
+        .position(|comment| comment.placement != CommentPlacement::Trailing)
+        .unwrap_or(gap.comments.len());
+    let mut attached_start = if trailing_count == gap.comments.len() || gap.newlines > 1 {
+        gap.comments.len()
+    } else {
+        gap.comments.len() - 1
+    };
+    while attached_start > trailing_count && gap.comments[attached_start].newlines_before <= 1 {
+        attached_start -= 1;
+    }
+
+    let mut opening = Gap {
+        comments: gap.comments[..attached_start].to_vec(),
+        newlines: 0,
+    };
+    let mut leading = Gap {
+        comments: gap.comments[attached_start..].to_vec(),
+        newlines: gap.newlines,
+    };
+    if let Some(first) = leading.comments.first_mut() {
+        opening.newlines = first.newlines_before;
+        first.newlines_before = 0;
+    } else {
+        opening.newlines = gap.newlines;
+    }
+    (Trivia::dangling(opening), Trivia::new(leading))
+}

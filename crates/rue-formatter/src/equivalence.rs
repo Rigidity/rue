@@ -29,7 +29,7 @@ pub(crate) fn comment_signature(
         .items
         .iter()
         .map(|item| {
-            covered_gaps.insert(item.span.start.index());
+            covered_gaps.insert(item.span.start().index());
             let anchor = item.identity_key.clone();
             append_trivia(&mut signature, &anchor, "leading", &item.leading);
             append_trivia(&mut signature, &anchor, "trailing", &item.trailing);
@@ -54,7 +54,7 @@ pub(crate) fn comment_signature(
 
         for item in &group.items {
             let anchor = format!("path:{}", item.identity_key);
-            covered_gaps.insert(item.span.start.index());
+            covered_gaps.insert(item.span.start().index());
             if let Some(comma) = item.comma {
                 covered_gaps.insert(comma.index());
             }
@@ -108,7 +108,7 @@ fn append_trivia(signature: &mut Vec<String>, anchor: &str, role: &str, trivia: 
 }
 
 fn normalized_relative_gap(stream: &TokenStream, span: TokenSpan, gap: usize) -> usize {
-    (span.start.index()..gap)
+    (span.start().index()..gap)
         .filter(|index| !is_optional_trailing_comma(stream, *index))
         .count()
 }
@@ -127,7 +127,7 @@ fn is_optional_trailing_comma(stream: &TokenStream, index: usize) -> bool {
 }
 
 fn contains_gap(span: TokenSpan, gap: usize) -> bool {
-    span.start.index() < gap && gap < span.end.index()
+    span.start().index() < gap && gap < span.end().index()
 }
 
 fn find_close(
@@ -141,7 +141,7 @@ fn find_close(
             rue_parser::T!['}'] => {
                 depth -= 1;
                 if depth == 0 {
-                    return Ok(crate::token_stream::TokenId::new(index));
+                    return stream.token_id(index);
                 }
             }
             _ => {}

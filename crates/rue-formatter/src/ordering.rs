@@ -6,7 +6,7 @@ use rue_parser::{SyntaxKind, SyntaxNode, T};
 use crate::{
     FormatError,
     token_stream::{TokenId, TokenSpan, TokenStream},
-    trivia::{Trivia, split_between, split_file_header},
+    trivia::{Trivia, split_between, split_file_header, split_group_opening},
 };
 
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ pub(crate) fn plan_document(
         let is_import = matches!(&item, AstItem::ImportItem(_));
         let import_group = is_import.then(|| {
             if !previous_was_import
-                || (span.start.index() > 0 && gap_has_blank_line(stream.gap_before(span.start)))
+                || (span.start().index() > 0 && gap_has_blank_line(stream.gap_before(span.start())))
             {
                 next_import_group += 1;
             }
@@ -74,14 +74,14 @@ pub(crate) fn plan_document(
         )
         .then_some(item.syntax().kind())
         .filter(|_| !item.syntax().text().to_string().contains('\n'));
-        let path_key = stream.tokens[span.start.index()..span.end.index()]
+        let path_key = stream.tokens[span.start().index()..span.end().index()]
             .iter()
             .filter(|token| !matches!(token.kind, T![import] | T![export] | T![;]))
             .map(|token| token.text.as_str())
             .collect::<String>();
         let keyword_key = stream
             .tokens
-            .get(span.start.index())
+            .get(span.start().index())
             .map_or("", |token| token.text.as_str());
 
         items.push(DocumentItem {
@@ -104,10 +104,10 @@ pub(crate) fn plan_document(
         });
     }
 
-    let (header, first_leading) = split_file_header(stream.gap_before(items[0].span.start));
+    let (header, first_leading) = split_file_header(stream.gap_before(items[0].span.start()));
     items[0].leading = first_leading;
     for index in 1..items.len() {
-        let (trailing, leading) = split_between(stream.gap_before(items[index].span.start));
+        let (trailing, leading) = split_between(stream.gap_before(items[index].span.start()));
         items[index - 1].trailing = trailing;
         items[index].leading = leading;
     }
@@ -171,11 +171,9 @@ pub(crate) fn plan_import_groups(
         for (original_index, path) in paths.iter().enumerate() {
             let span = node_span(path, stream)?;
             let comma = stream
-                .tokens
-                .get(span.end.index())
-                .filter(|token| token.kind == T![,])
-                .map(|_| span.end);
-            let sort_key = stream.tokens[span.start.index()..span.end.index()]
+                .token_at(span.end())
+                .filter(|id| stream.token(*id).kind == T![,]);
+            let sort_key = stream.tokens[span.start().index()..span.end().index()]
                 .iter()
                 .map(|token| token.text.as_str())
                 .collect();
@@ -194,10 +192,11 @@ pub(crate) fn plan_import_groups(
             });
         }
 
-        let (opening, first_leading) = split_between(stream.gap_before(items[0].span.start));
+        let (opening, first_leading) =
+            split_group_opening(stream.gap_before(items[0].span.start()));
         items[0].leading = first_leading;
         for index in 1..items.len() {
-            let boundary = stream.gap_before(items[index].span.start);
+            let boundary = stream.gap_before(items[index].span.start());
             let (trailing, leading) = split_between(boundary);
             items[index - 1].trailing = trailing;
             items[index].leading = leading;
@@ -217,7 +216,7 @@ pub(crate) fn plan_import_groups(
         groups.insert(
             open,
             ImportGroupPlan {
-                opening: Trivia::dangling(opening.gap),
+                opening,
                 items,
                 closing: Trivia::dangling(closing.gap),
             },
@@ -227,15 +226,14 @@ pub(crate) fn plan_import_groups(
 }
 
 fn item_span(node: &SyntaxNode, stream: &TokenStream) -> Result<TokenSpan, FormatError> {
-    let mut span = node_span(node, stream)?;
-    if stream
-        .tokens
-        .get(span.end.index())
-        .is_some_and(|token| token.kind == T![;])
-    {
-        span.end = span.end.next();
-    }
-    Ok(span)
+    let span = node_span(node, stream)?;
+    let Some(semicolon) = stream
+        .token_at(span.end())
+        .filter(|id| stream.token(*id).kind == T![;])
+    else {
+        return Ok(span);
+    };
+    stream.span_through(span.start(), semicolon)
 }
 
 fn node_span(node: &SyntaxNode, stream: &TokenStream) -> Result<TokenSpan, FormatError> {
@@ -245,10 +243,8 @@ fn node_span(node: &SyntaxNode, stream: &TokenStream) -> Result<TokenSpan, Forma
     })?;
     let last = tokens.last().unwrap_or_else(|| first.clone());
     let start = stream.token_id_at_offset(usize::from(first.text_range().start()))?;
-    let end = stream
-        .token_id_at_offset(usize::from(last.text_range().start()))?
-        .next();
-    Ok(TokenSpan::new(start, end))
+    let last = stream.token_id_at_offset(usize::from(last.text_range().start()))?;
+    stream.span_through(start, last)
 }
 
 fn find_matching_close(open: TokenId, stream: &TokenStream) -> Result<TokenId, FormatError> {
@@ -259,7 +255,7 @@ fn find_matching_close(open: TokenId, stream: &TokenStream) -> Result<TokenId, F
             T!['}'] => {
                 depth -= 1;
                 if depth == 0 {
-                    return Ok(TokenId::new(index));
+                    return stream.token_id(index);
                 }
             }
             _ => {}

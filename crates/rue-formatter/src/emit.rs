@@ -52,8 +52,8 @@ impl<'a> Formatter<'a> {
                         (None, None)
                             if previous.compact_group.is_some()
                                 && previous.compact_group == item.compact_group
-                                && (item.span.start.index() == 0
-                                    || self.stream.gap_before(item.span.start).newlines <= 1) =>
+                                && (item.span.start().index() == 0
+                                    || self.stream.gap_before(item.span.start()).newlines <= 1) =>
                         {
                             Separator::Hard
                         }
@@ -97,26 +97,39 @@ impl<'a> Formatter<'a> {
     }
 
     fn span_inner(&mut self, span: TokenSpan, allow_outer_group: bool) -> Result<Doc, FormatError> {
-        if allow_outer_group
-            && self
+        let exact_group = self
+            .layout
+            .facts(span.start())
+            .group_end
+            .is_some_and(|end| self.stream.boundary_after(end) == span.end());
+        if exact_group {
+            if !self
                 .layout
-                .facts(span.start)
-                .group_end
-                .is_some_and(|end| end.next() == span.end)
-        {
-            return self.grouped_span(span);
+                .facts(span.start())
+                .binary_operators
+                .is_empty()
+            {
+                return Ok(self.binary_span(span)?.group());
+            }
+            if allow_outer_group {
+                return self.grouped_span(span);
+            }
         }
 
         let mut docs = Vec::new();
-        let mut index = span.start;
-        while index.index() < span.end.index() {
+        let mut index = span.start();
+        while index.index() < span.end().index() {
             let mut emitted_separator = false;
             let facts = self.layout.facts(index);
             let atom_end = if let Some(group_end) = facts.group_end
-                && group_end.index() < span.end.index()
-                && !(index == span.start && group_end.next() == span.end)
+                && self.stream.boundary_after(group_end).index() < span.end().index()
+                && !(index == span.start() && self.stream.boundary_after(group_end) == span.end())
             {
-                let next = group_end.next();
+                let next = self.stream.next_token(group_end).ok_or_else(|| {
+                    FormatError::Internal(
+                        "group end has no following token inside formatting span".to_string(),
+                    )
+                })?;
                 let gap = self.stream.gap_before(next);
                 if !facts.binary_operators.is_empty()
                     && self.stream.tokens.get(next.index()).is_some_and(|_| {
@@ -130,18 +143,22 @@ impl<'a> Formatter<'a> {
                 {
                     docs.push(
                         Doc::concat([
-                            self.binary_span(TokenSpan::new(index, next))?,
+                            self.binary_span(
+                                self.stream.span(index, self.stream.boundary_before(next))?,
+                            )?,
                             Doc::if_break(Doc::hard_line(), Doc::space()),
                         ])
                         .group(),
                     );
                     emitted_separator = true;
                 } else {
-                    docs.push(self.grouped_span(TokenSpan::new(index, next))?);
+                    docs.push(self.grouped_span(
+                        self.stream.span(index, self.stream.boundary_before(next))?,
+                    )?);
                 }
                 group_end
             } else if let Some(close) = facts.pair {
-                if close.index() >= span.end.index() {
+                if close.index() >= span.end().index() {
                     return Err(FormatError::Internal(
                         "delimiter pair crosses formatting span".to_string(),
                     ));
@@ -153,36 +170,55 @@ impl<'a> Formatter<'a> {
                 index
             };
 
-            index = atom_end.next();
-            if index.index() < span.end.index() && !emitted_separator {
-                let separator = self.separator(atom_end, index);
-                docs.push(self.gap_doc(self.stream.gap_before(index), separator));
+            let next_boundary = self.stream.boundary_after(atom_end);
+            if next_boundary.index() < span.end().index() {
+                index = self.stream.token_at(next_boundary).ok_or_else(|| {
+                    FormatError::Internal(
+                        "formatting span contains a non-token boundary".to_string(),
+                    )
+                })?;
+                if !emitted_separator {
+                    let separator = self.separator(atom_end, index);
+                    docs.push(self.gap_doc(self.stream.gap_before(index), separator));
+                }
+            } else {
+                break;
             }
         }
         Ok(Doc::concat(docs))
     }
 
     fn grouped_span(&mut self, span: TokenSpan) -> Result<Doc, FormatError> {
-        if !self.layout.facts(span.start).binary_operators.is_empty() {
+        if !self.layout.facts(span.start()).binary_operators.is_empty() {
             return Ok(self.binary_span(span)?.group());
         }
         Ok(self.span_inner(span, false)?.indent().group())
     }
 
     fn binary_span(&mut self, span: TokenSpan) -> Result<Doc, FormatError> {
-        let operators = self.layout.facts(span.start).binary_operators.clone();
+        let operators = self.layout.facts(span.start()).binary_operators.clone();
         let Some(&first_operator) = operators.first() else {
             return self.span_inner(span, false);
         };
 
-        let mut docs = vec![self.span_inner(TokenSpan::new(span.start, first_operator), false)?];
+        let mut docs = vec![
+            self.span_inner(
+                self.stream
+                    .span(span.start(), self.stream.boundary_before(first_operator))?,
+                false,
+            )?,
+        ];
         for (position, operator) in operators.iter().enumerate() {
-            let operand_start = operator.next();
-            let segment_end = operators.get(position + 1).copied().unwrap_or(span.end);
+            let operand_start = self.stream.next_token(*operator).ok_or_else(|| {
+                FormatError::Internal("binary operator has no operand token".to_string())
+            })?;
+            let segment_end = operators
+                .get(position + 1)
+                .map_or(span.end(), |next| self.stream.boundary_before(*next));
             let operator_doc = self.token(*operator);
             let after_operator =
                 self.gap_doc(self.stream.gap_before(operand_start), Separator::Space);
-            let operand = self.span_inner(TokenSpan::new(operand_start, segment_end), false)?;
+            let operand = self.span_inner(self.stream.span(operand_start, segment_end)?, false)?;
             let segment = Doc::concat([operator_doc, after_operator, operand]);
             if is_comparison_operator(self.stream.token(*operator).kind)
                 && self.stream.gap_before(*operator).comments.is_empty()
@@ -204,7 +240,9 @@ impl<'a> Formatter<'a> {
         let supports_trailing_comma = facts.supports_trailing_comma();
         let open_doc = self.token(open);
         let close_doc = self.token(close);
-        let inner_start = open.next();
+        let inner_start = self.stream.next_token(open).ok_or_else(|| {
+            FormatError::Internal("opening delimiter has no following token".to_string())
+        })?;
 
         if inner_start == close {
             let gap = self.gap_doc_with_comments(
@@ -226,12 +264,19 @@ impl<'a> Formatter<'a> {
             return self.import_group(open_doc, close_doc, &plan);
         }
 
-        let source_trailing_comma = supports_trailing_comma
-            && self.stream.token(TokenId::new(close.index() - 1)).kind == T![,];
-        let inner_end = TokenId::new(close.index() - usize::from(source_trailing_comma));
-        let inner = self.span(TokenSpan::new(inner_start, inner_end))?;
+        let previous = self.stream.previous_token(close).ok_or_else(|| {
+            FormatError::Internal("closing delimiter has no preceding token".to_string())
+        })?;
+        let source_trailing_comma =
+            supports_trailing_comma && self.stream.token(previous).kind == T![,];
+        let inner_end = if source_trailing_comma {
+            self.stream.boundary_before(previous)
+        } else {
+            self.stream.boundary_before(close)
+        };
+        let inner = self.span(self.stream.span(inner_start, inner_end)?)?;
         let comma = if source_trailing_comma {
-            let leading = self.gap_doc(self.stream.gap_before(inner_end), Separator::None);
+            let leading = self.gap_doc(self.stream.gap(inner_end), Separator::None);
             self.consumed_tokens += 1;
             Doc::concat([leading, Doc::if_break(Doc::text(","), Doc::Nil)])
         } else if supports_trailing_comma {

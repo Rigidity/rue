@@ -8,28 +8,33 @@ use crate::FormatError;
 pub(crate) struct TokenId(usize);
 
 impl TokenId {
-    pub(crate) fn new(index: usize) -> Self {
-        Self(index)
-    }
-
     pub(crate) fn index(self) -> usize {
         self.0
     }
+}
 
-    pub(crate) fn next(self) -> Self {
-        Self(self.0 + 1)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct TokenBoundary(usize);
+
+impl TokenBoundary {
+    pub(crate) fn index(self) -> usize {
+        self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct TokenSpan {
-    pub(crate) start: TokenId,
-    pub(crate) end: TokenId,
+    start: TokenId,
+    end: TokenBoundary,
 }
 
 impl TokenSpan {
-    pub(crate) fn new(start: TokenId, end: TokenId) -> Self {
-        Self { start, end }
+    pub(crate) fn start(self) -> TokenId {
+        self.start
+    }
+
+    pub(crate) fn end(self) -> TokenBoundary {
+        self.end
     }
 }
 
@@ -164,7 +169,7 @@ impl TokenStream {
         let token_by_offset = tokens
             .iter()
             .enumerate()
-            .map(|(index, token)| (token.start, TokenId::new(index)))
+            .map(|(index, token)| (token.start, TokenId(index)))
             .collect();
 
         Ok(Self {
@@ -176,11 +181,91 @@ impl TokenStream {
     }
 
     pub(crate) fn token(&self, id: TokenId) -> &Token {
-        &self.tokens[id.index()]
+        self.tokens
+            .get(id.index())
+            .expect("TokenId was validated by this token stream")
     }
 
     pub(crate) fn gap_before(&self, id: TokenId) -> &Gap {
-        &self.gaps[id.index()]
+        self.gap(TokenBoundary(id.index()))
+    }
+
+    pub(crate) fn gap(&self, boundary: TokenBoundary) -> &Gap {
+        self.gaps
+            .get(boundary.index())
+            .expect("TokenBoundary was validated by this token stream")
+    }
+
+    pub(crate) fn token_id(&self, index: usize) -> Result<TokenId, FormatError> {
+        (index < self.tokens.len())
+            .then_some(TokenId(index))
+            .ok_or_else(|| {
+                FormatError::Internal(format!(
+                    "token index {index} is out of range for {} tokens",
+                    self.tokens.len()
+                ))
+            })
+    }
+
+    pub(crate) fn boundary(&self, index: usize) -> Result<TokenBoundary, FormatError> {
+        (index <= self.tokens.len())
+            .then_some(TokenBoundary(index))
+            .ok_or_else(|| {
+                FormatError::Internal(format!(
+                    "token boundary {index} is out of range for {} tokens",
+                    self.tokens.len()
+                ))
+            })
+    }
+
+    pub(crate) fn boundary_before(&self, id: TokenId) -> TokenBoundary {
+        TokenBoundary(id.index())
+    }
+
+    pub(crate) fn boundary_after(&self, id: TokenId) -> TokenBoundary {
+        TokenBoundary(id.index() + 1)
+    }
+
+    pub(crate) fn token_at(&self, boundary: TokenBoundary) -> Option<TokenId> {
+        (boundary.index() < self.tokens.len()).then_some(TokenId(boundary.index()))
+    }
+
+    pub(crate) fn next_token(&self, id: TokenId) -> Option<TokenId> {
+        self.token_at(self.boundary_after(id))
+    }
+
+    pub(crate) fn previous_token(&self, id: TokenId) -> Option<TokenId> {
+        id.index().checked_sub(1).map(TokenId)
+    }
+
+    pub(crate) fn span(
+        &self,
+        start: TokenId,
+        end: TokenBoundary,
+    ) -> Result<TokenSpan, FormatError> {
+        if end.index() > self.tokens.len() {
+            return Err(FormatError::Internal(format!(
+                "span end {} is out of range for {} tokens",
+                end.index(),
+                self.tokens.len()
+            )));
+        }
+        if start.index() >= end.index() {
+            return Err(FormatError::Internal(format!(
+                "token span start {} must precede end {}",
+                start.index(),
+                end.index()
+            )));
+        }
+        Ok(TokenSpan { start, end })
+    }
+
+    pub(crate) fn span_through(
+        &self,
+        start: TokenId,
+        last: TokenId,
+    ) -> Result<TokenSpan, FormatError> {
+        self.span(start, self.boundary(last.index() + 1)?)
     }
 
     pub(crate) fn token_id_at_offset(&self, offset: usize) -> Result<TokenId, FormatError> {
@@ -200,4 +285,78 @@ fn newline_count(text: &str) -> usize {
             .filter(|pair| pair[0] == b'\r' && pair[1] != b'\n')
             .count()
         + usize::from(text.ends_with('\r'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_stream() -> TokenStream {
+        let tokens = ["a", "b", "c"]
+            .into_iter()
+            .enumerate()
+            .map(|(start, text)| Token {
+                kind: SyntaxKind::Ident,
+                text: text.to_string(),
+                start,
+            })
+            .collect::<Vec<_>>();
+        TokenStream {
+            token_by_offset: tokens
+                .iter()
+                .enumerate()
+                .map(|(index, token)| (token.start, TokenId(index)))
+                .collect(),
+            gaps: vec![Gap::default(); tokens.len() + 1],
+            tokens,
+            comment_count: 0,
+        }
+    }
+
+    #[test]
+    fn constructs_valid_bounded_spans() {
+        let stream = test_stream();
+        let first = stream.token_id(0).unwrap();
+        let second = stream.token_id(1).unwrap();
+        let span = stream.span_through(first, second).unwrap();
+
+        assert_eq!(span.start(), first);
+        assert_eq!(span.end(), stream.boundary(2).unwrap());
+        assert_eq!(stream.token(span.start()).text, "a");
+        assert_eq!(
+            stream.token_at(span.end()),
+            Some(stream.token_id(2).unwrap())
+        );
+    }
+
+    #[test]
+    fn end_boundary_is_not_a_token_id() {
+        let stream = test_stream();
+        let end = stream.boundary(stream.tokens.len()).unwrap();
+        let span = stream
+            .span(stream.token_id(0).unwrap(), end)
+            .expect("end-of-stream is a valid exclusive span boundary");
+
+        assert_eq!(span.end(), end);
+        assert_eq!(stream.token_at(end), None);
+        assert_eq!(stream.gap(end).comments.len(), 0);
+        assert!(stream.token_id(stream.tokens.len()).is_err());
+    }
+
+    #[test]
+    fn rejects_reversed_and_empty_spans() {
+        let stream = test_stream();
+        let first = stream.token_id(0).unwrap();
+        let last = stream.token_id(2).unwrap();
+
+        assert!(stream.span(last, stream.boundary_before(first)).is_err());
+        assert!(stream.span(first, stream.boundary_before(first)).is_err());
+    }
+
+    #[test]
+    fn rejects_out_of_range_ids_and_boundaries() {
+        let stream = test_stream();
+        assert!(stream.token_id(3).is_err());
+        assert!(stream.boundary(4).is_err());
+    }
 }

@@ -102,7 +102,7 @@ impl Layout {
 fn pair_delimiters(stream: &TokenStream, facts: &mut [TokenFacts]) -> Result<(), FormatError> {
     let mut stack: Vec<(SyntaxKind, TokenId)> = Vec::new();
     for (index, token) in stream.tokens.iter().enumerate() {
-        let id = TokenId::new(index);
+        let id = stream.token_id(index)?;
         match token.kind {
             T!['('] | T!['['] | T!['{'] => stack.push((token.kind, id)),
             T![')'] | T![']'] | T!['}'] => {
@@ -238,12 +238,11 @@ fn analyze_boundaries(
             ));
         };
         let mut id = token_id(&token, stream)?;
-        if stream
-            .tokens
-            .get(id.next().index())
-            .is_some_and(|token| token.kind == T![;])
+        if let Some(next) = stream
+            .next_token(id)
+            .filter(|next| stream.token(*next).kind == T![;])
         {
-            id = id.next();
+            id = next;
         }
         facts[id.index()].item_boundary = Some(ItemBoundary::Document);
     }
