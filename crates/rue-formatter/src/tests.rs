@@ -2,6 +2,9 @@ use expect_test::{Expect, expect};
 
 use crate::{FormatError, FormatOptions, format_source};
 
+mod comments;
+mod imports;
+
 #[allow(clippy::needless_pass_by_value)]
 fn check(input: &str, expected: Expect) {
     let output = format_source(input, &FormatOptions::default()).expect("source should format");
@@ -40,46 +43,6 @@ fn types_bindings_generics_and_imports() {
             fn take<T>(...[a, { x: y }]: [T, ...T]) -> fn(a: T) -> T {}
         "#]],
     );
-}
-
-#[test]
-fn comments_are_preserved_once() {
-    check(
-        "// lead\nfn main(/* a */x:Int){// before\nlet y=x/* op */+1; // trailing\n// tail\ny}",
-        expect![[r#"
-            // lead
-            fn main(/* a */ x: Int) {
-                // before
-                let y = x /* op */ + 1; // trailing
-                // tail
-                y
-            }
-        "#]],
-    );
-}
-
-#[test]
-fn comment_position_matrix() {
-    check(
-        "/* file */\nfn main(/* parameter */x:Int)->Int{let y=[/* dangling */];x/* left */+/* right */1}// eof",
-        expect![[r#"
-            /* file */
-            fn main(/* parameter */ x: Int) -> Int {
-                let y = [ /* dangling */ ];
-                x /* left */ + /* right */ 1
-            } // eof
-        "#]],
-    );
-}
-
-#[test]
-fn multiline_comment_text_is_exact() {
-    let output = format_source(
-        "fn main(){/* first  \nsecond */1}",
-        &FormatOptions::default(),
-    )
-    .unwrap();
-    assert!(output.contains("/* first  \nsecond */"));
 }
 
 #[test]
@@ -362,34 +325,6 @@ fn union_type_operators_lead_continuation_lines() {
     "#]]
     .assert_eq(&output);
     assert_eq!(format_source(&output, &options).unwrap(), output);
-}
-
-#[test]
-fn imports_are_hoisted_grouped_and_sorted() {
-    check(
-        "const VALUE:Int=1; import zebra; import beta::{zeta,alpha};\n\nimport delta; import charlie; fn main(){}",
-        expect![[r#"
-            import beta::{alpha, zeta};
-            import zebra;
-
-            import charlie;
-            import delta;
-
-            const VALUE: Int = 1;
-
-            fn main() {}
-        "#]],
-    );
-    check(
-        "const VALUE:Int=1;\n// zebra\nimport zebra;\nimport alpha;",
-        expect![[r#"
-            import alpha;
-            // zebra
-            import zebra;
-
-            const VALUE: Int = 1;
-        "#]],
-    );
 }
 
 #[test]
@@ -701,39 +636,6 @@ fn broken_lists_add_trailing_commas_everywhere() {
 }
 
 #[test]
-fn comment_and_blank_line_boundaries() {
-    check(
-        "//! file\n\n/* before */const VALUE:Int=1;/* between */\n\nfn main(){let list=[/* open */1,/* item */2/* close */];let value=1/* before op */+/* after op */2;// trailing\n/* own line */\nvalue}// eof",
-        expect![[r#"
-            //! file
-
-            /* before */ const VALUE: Int = 1; /* between */
-
-            fn main() {
-                let list = [/* open */ 1, /* item */ 2 /* close */ ];
-                let value = 1 /* before op */ + /* after op */ 2; // trailing
-                /* own line */
-                value
-            } // eof
-        "#]],
-    );
-}
-
-#[test]
-fn nested_import_paths_are_sorted_without_crossing_groups() {
-    check(
-        "import root::{zeta::{two,one},alpha,super::thing};\nimport beta::*;\n\nexport zebra::{last,first};\nexport alpha;",
-        expect![[r#"
-            import beta::*;
-            import root::{alpha, super::thing, zeta::{one, two}};
-
-            export alpha;
-            export zebra::{first, last};
-        "#]],
-    );
-}
-
-#[test]
 fn custom_indentation_width_is_applied_consistently() {
     let options = FormatOptions {
         max_width: 24,
@@ -825,33 +727,6 @@ fn comparison_operator_wrap_matrix() {
 }
 
 #[test]
-fn comments_inside_broken_delimiters() {
-    let options = FormatOptions {
-        max_width: 32,
-        ..FormatOptions::default()
-    };
-    let output = format_source(
-        "fn comments(){consume(first_argument,// first\nsecond_argument,/* third */third_argument);[first_argument,// spread\n...remaining_arguments]}",
-        &options,
-    )
-    .unwrap();
-    expect![[r#"
-        fn comments() {
-            consume(
-                first_argument, // first
-                second_argument, /* third */ third_argument,
-            );
-            [
-                first_argument, // spread
-                ...remaining_arguments,
-            ]
-        }
-    "#]]
-    .assert_eq(&output);
-    assert_eq!(format_source(&output, &options).unwrap(), output);
-}
-
-#[test]
 fn long_types_and_bindings_break_consistently() {
     let options = FormatOptions {
         max_width: 36,
@@ -878,60 +753,6 @@ fn long_types_and_bindings_break_consistently() {
     "#]]
     .assert_eq(&output);
     assert_eq!(format_source(&output, &options).unwrap(), output);
-}
-
-#[test]
-fn comments_between_if_else_branches_stay_attached() {
-    check(
-        "fn choose(value:Int)->Int{if value>0{// positive\n1}else if value<0{/* negative */-1}else{// zero\n0}}",
-        expect![[r#"
-            fn choose(value: Int) -> Int {
-                if value > 0 {
-                    // positive
-                    1
-                } else if value < 0 {
-                    /* negative */ -1
-                } else {
-                    // zero
-                    0
-                }
-            }
-        "#]],
-    );
-}
-
-#[test]
-fn import_comments_move_with_their_imports() {
-    check(
-        "// zeta docs\nimport zeta;\n// alpha docs\nimport alpha;\n\n// beta export\nexport beta;",
-        expect![[r#"
-            // alpha docs
-            import alpha;
-            // zeta docs
-            import zeta;
-
-            // beta export
-            export beta;
-        "#]],
-    );
-}
-
-#[test]
-fn excessive_blank_lines_are_normalized_around_comments() {
-    check(
-        "const FIRST:Int=1;\n\n\n// second group\n\n\nconst SECOND:Int=2;\n\n\n\nfn main(){FIRST+SECOND}",
-        expect![[r#"
-            const FIRST: Int = 1;
-
-            // second group
-
-            const SECOND: Int = 2;
-
-            fn main() {
-                FIRST + SECOND
-            }
-        "#]],
-    );
 }
 
 #[test]

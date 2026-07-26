@@ -1,6 +1,37 @@
+use std::collections::HashMap;
+
 use rue_parser::{SyntaxKind, SyntaxNode};
 
 use crate::FormatError;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct TokenId(usize);
+
+impl TokenId {
+    pub(crate) fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub(crate) fn index(self) -> usize {
+        self.0
+    }
+
+    pub(crate) fn next(self) -> Self {
+        Self(self.0 + 1)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TokenSpan {
+    pub(crate) start: TokenId,
+    pub(crate) end: TokenId,
+}
+
+impl TokenSpan {
+    pub(crate) fn new(start: TokenId, end: TokenId) -> Self {
+        Self { start, end }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Token {
@@ -20,8 +51,15 @@ pub(crate) struct Comment {
     pub(crate) text: String,
     pub(crate) kind: SyntaxKind,
     pub(crate) newlines_before: usize,
-    pub(crate) trailing: bool,
+    pub(crate) placement: CommentPlacement,
     pub(crate) multiline: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum CommentPlacement {
+    Leading,
+    Trailing,
+    Dangling,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +67,7 @@ pub(crate) struct TokenStream {
     pub(crate) tokens: Vec<Token>,
     pub(crate) gaps: Vec<Gap>,
     pub(crate) comment_count: usize,
+    token_by_offset: HashMap<usize, TokenId>,
 }
 
 impl TokenStream {
@@ -78,7 +117,11 @@ impl TokenStream {
                             text,
                             kind,
                             newlines_before: pending_newlines,
-                            trailing: line_has_significant && pending_newlines == 0,
+                            placement: if line_has_significant && pending_newlines == 0 {
+                                CommentPlacement::Trailing
+                            } else {
+                                CommentPlacement::Leading
+                            },
                             multiline,
                         });
                     comment_count += 1;
@@ -118,10 +161,33 @@ impl TokenStream {
             ));
         }
 
+        let token_by_offset = tokens
+            .iter()
+            .enumerate()
+            .map(|(index, token)| (token.start, TokenId::new(index)))
+            .collect();
+
         Ok(Self {
             tokens,
             gaps,
             comment_count,
+            token_by_offset,
+        })
+    }
+
+    pub(crate) fn token(&self, id: TokenId) -> &Token {
+        &self.tokens[id.index()]
+    }
+
+    pub(crate) fn gap_before(&self, id: TokenId) -> &Gap {
+        &self.gaps[id.index()]
+    }
+
+    pub(crate) fn token_id_at_offset(&self, offset: usize) -> Result<TokenId, FormatError> {
+        self.token_by_offset.get(&offset).copied().ok_or_else(|| {
+            FormatError::Internal(format!(
+                "syntax token at source offset {offset} has no significant token ID"
+            ))
         })
     }
 }

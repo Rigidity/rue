@@ -8,10 +8,16 @@
 //! Configuration files, range formatting, malformed-tree formatting, comment
 //! reflow, CLI integration, and LSP integration are intentionally deferred.
 
+mod analysis;
 mod document;
+mod emit;
+mod equivalence;
 mod format;
+mod ordering;
 mod renderer;
+mod syntax;
 mod token_stream;
+mod trivia;
 
 use std::sync::Arc;
 
@@ -21,7 +27,10 @@ use rue_lexer::Lexer;
 use rue_parser::{Parser, SyntaxKind, SyntaxNode};
 use thiserror::Error;
 
-use crate::{format::format_document, renderer::render, token_stream::TokenStream};
+use crate::{
+    equivalence::comment_signature, format::format_document, renderer::render,
+    token_stream::TokenStream,
+};
 
 /// Deterministic formatter settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,9 +89,9 @@ pub fn format_source(source: &str, options: &FormatOptions) -> Result<String, Fo
 
     let second = format_once(&output, options)?;
     if second != formatted {
-        return Err(FormatError::Internal(
-            "formatting was not idempotent".to_string(),
-        ));
+        return Err(FormatError::Internal(format!(
+            "formatting was not idempotent\nfirst:\n{formatted}\nsecond:\n{second}"
+        )));
     }
 
     Ok(formatted)
@@ -133,12 +142,12 @@ fn verify_equivalence(before: &Parsed, after: &Parsed) -> Result<(), FormatError
 
     let before_stream = TokenStream::from_syntax(before.document.syntax())?;
     let after_stream = TokenStream::from_syntax(after.document.syntax())?;
-    let before_comments = comment_signature(&before_stream);
-    let after_comments = comment_signature(&after_stream);
+    let before_comments = comment_signature(&before.document, &before_stream)?;
+    let after_comments = comment_signature(&after.document, &after_stream)?;
     if before_comments != after_comments {
-        return Err(FormatError::Internal(
-            "formatted source changed or duplicated comments".to_string(),
-        ));
+        return Err(FormatError::Internal(format!(
+            "formatted source changed or duplicated comments\nbefore: {before_comments:#?}\nafter: {after_comments:#?}"
+        )));
     }
     Ok(())
 }
@@ -244,20 +253,6 @@ fn is_optional_trailing_comma(token: &rue_parser::SyntaxToken) -> bool {
                 | SyntaxKind::GenericArguments
         )
     })
-}
-
-fn comment_signature(stream: &TokenStream) -> Vec<(SyntaxKind, &str)> {
-    let mut signature: Vec<_> = stream
-        .gaps
-        .iter()
-        .flat_map(|gap| {
-            gap.comments
-                .iter()
-                .map(|comment| (comment.kind, comment.text.as_str()))
-        })
-        .collect();
-    signature.sort_unstable();
-    signature
 }
 
 #[cfg(test)]

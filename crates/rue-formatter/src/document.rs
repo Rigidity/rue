@@ -8,7 +8,10 @@ pub(crate) enum Doc {
     Line(LineKind),
     Indent(Box<Self>),
     Group(Box<Self>),
-    PreferredBreak {
+    /// A local fill boundary with continuation indentation applied only when
+    /// that boundary breaks. Ordinary groups cannot express that conditional
+    /// indentation when their surrounding binary chain is already broken.
+    Fill {
         doc: Box<Self>,
         indent_on_break: bool,
     },
@@ -50,6 +53,13 @@ impl Doc {
         Self::Line(LineKind::Soft)
     }
 
+    pub(crate) fn fill(doc: Self, indent_on_break: bool) -> Self {
+        Self::Fill {
+            doc: Box::new(doc),
+            indent_on_break,
+        }
+    }
+
     pub(crate) fn hard_line() -> Self {
         Self::Line(LineKind::Hard)
     }
@@ -64,13 +74,6 @@ impl Doc {
 
     pub(crate) fn group(self) -> Self {
         Self::Group(Box::new(self))
-    }
-
-    pub(crate) fn preferred_break(doc: Self, indent_on_break: bool) -> Self {
-        Self::PreferredBreak {
-            doc: Box::new(doc),
-            indent_on_break,
-        }
     }
 
     pub(crate) fn if_break(broken: Self, flat: Self) -> Self {
