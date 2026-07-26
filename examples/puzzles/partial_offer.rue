@@ -59,8 +59,8 @@ fn main(
 
     let new_amount = proof.amount
         - other_asset_amount
-        * precisions.price_precision
-        / precisions.precision;
+            * precisions.price_precision
+            / precisions.precision;
 
     let recreate = inline if new_amount > 0 {
         CreateCoin {

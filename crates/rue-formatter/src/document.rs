@@ -16,7 +16,7 @@ pub(crate) enum Doc {
         flat: Box<Self>,
         broken: Box<Self>,
         space_when_flat: bool,
-        indent_on_break: bool,
+        indent_levels_on_break: usize,
     },
     IfBreak {
         broken: Box<Self>,
@@ -56,12 +56,12 @@ impl Doc {
         Self::Line(LineKind::Soft)
     }
 
-    pub(crate) fn fill(doc: Self, indent_on_break: bool) -> Self {
+    pub(crate) fn fill(doc: Self, indent_levels_on_break: usize) -> Self {
         Self::Fill {
             flat: Box::new(doc.clone()),
             broken: Box::new(doc),
             space_when_flat: true,
-            indent_on_break,
+            indent_levels_on_break,
         }
     }
 
@@ -69,13 +69,13 @@ impl Doc {
         flat: Self,
         broken: Self,
         space_when_flat: bool,
-        indent_on_break: bool,
+        indent_levels_on_break: usize,
     ) -> Self {
         Self::Fill {
             flat: Box::new(flat),
             broken: Box::new(broken),
             space_when_flat,
-            indent_on_break,
+            indent_levels_on_break,
         }
     }
 

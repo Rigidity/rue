@@ -103,7 +103,12 @@ impl<'a> Formatter<'a> {
             .group_end
             .is_some_and(|end| self.stream.boundary_after(end) == span.end());
         if exact_group {
-            if !self.layout.facts(span.start()).binary_operators.is_empty() {
+            if !self
+                .layout
+                .facts(span.start())
+                .continuation_operators
+                .is_empty()
+            {
                 return Ok(self.binary_span(span)?.group());
             }
             if allow_outer_group {
@@ -126,7 +131,7 @@ impl<'a> Formatter<'a> {
                     )
                 })?;
                 let gap = self.stream.gap_before(next);
-                if !facts.binary_operators.is_empty()
+                if !facts.continuation_operators.is_empty()
                     && self
                         .layout
                         .facts(next)
@@ -183,46 +188,59 @@ impl<'a> Formatter<'a> {
     }
 
     fn grouped_span(&mut self, span: TokenSpan) -> Result<Doc, FormatError> {
-        if !self.layout.facts(span.start()).binary_operators.is_empty() {
+        if !self
+            .layout
+            .facts(span.start())
+            .continuation_operators
+            .is_empty()
+        {
             return Ok(self.binary_span(span)?.group());
         }
         Ok(self.span_inner(span, false)?.indent().group())
     }
 
     fn binary_span(&mut self, span: TokenSpan) -> Result<Doc, FormatError> {
-        let operators = self.layout.facts(span.start()).binary_operators.clone();
-        let Some(&first_operator) = operators.first() else {
+        let operators = self
+            .layout
+            .facts(span.start())
+            .continuation_operators
+            .clone();
+        let Some(first_operator) = operators.first() else {
             return self.span_inner(span, false);
         };
 
-        let mut docs = vec![
-            self.span_inner(
-                self.stream
-                    .span(span.start(), self.stream.boundary_before(first_operator))?,
-                false,
+        let mut docs = vec![self.span_inner(
+            self.stream.span(
+                span.start(),
+                self.stream.boundary_before(first_operator.token),
             )?,
-        ];
+            false,
+        )?];
         for (position, operator) in operators.iter().enumerate() {
-            let operand_start = self.stream.next_token(*operator).ok_or_else(|| {
+            let operand_start = self.stream.next_token(operator.token).ok_or_else(|| {
                 FormatError::Internal("binary operator has no operand token".to_string())
             })?;
             let segment_end = operators
                 .get(position + 1)
-                .map_or(span.end(), |next| self.stream.boundary_before(*next));
-            let operator_doc = self.token(*operator);
+                .map_or(span.end(), |next| self.stream.boundary_before(next.token));
+            let operator_doc = self.token(operator.token);
             let after_operator =
                 self.gap_doc(self.stream.gap_before(operand_start), Separator::Space);
             let operand = self.span_inner(self.stream.span(operand_start, segment_end)?, false)?;
             let segment = Doc::concat([operator_doc, after_operator, operand]);
-            if is_comparison_operator(self.stream.token(*operator).kind)
-                && self.stream.gap_before(*operator).comments.is_empty()
+            if is_comparison_operator(self.stream.token(operator.token).kind)
+                && self.stream.gap_before(operator.token).comments.is_empty()
             {
-                let fill = Doc::fill(segment, position == 0);
-                docs.push(if position == 0 { fill } else { fill.indent() });
+                let fills_at_root = position == 0 && operator.depth == 0;
+                let fill = Doc::fill(segment, if fills_at_root { 1 } else { operator.depth });
+                docs.push(if fills_at_root { fill } else { fill.indent() });
             } else {
                 let before_operator =
-                    self.gap_doc(self.stream.gap_before(*operator), Separator::Soft);
-                docs.push(Doc::concat([before_operator, segment]).indent());
+                    self.gap_doc(self.stream.gap_before(operator.token), Separator::Soft);
+                docs.push(indent_levels(
+                    Doc::concat([before_operator, segment]),
+                    operator.depth + 1,
+                ));
             }
         }
         Ok(Doc::concat(docs))
@@ -351,7 +369,7 @@ impl<'a> Formatter<'a> {
                 ]);
                 Doc::concat([
                     open_doc,
-                    Doc::fill_choice(flat_inner, broken_inner, space_inside, true),
+                    Doc::fill_choice(flat_inner, broken_inner, space_inside, 1),
                 ])
                 .group()
             }
@@ -572,6 +590,13 @@ impl GroupIf for Doc {
     fn group_if(self, condition: bool) -> Self {
         if condition { self.group() } else { self }
     }
+}
+
+fn indent_levels(mut doc: Doc, levels: usize) -> Doc {
+    for _ in 0..levels {
+        doc = doc.indent();
+    }
+    doc
 }
 
 fn separator_doc(separator: Separator) -> Doc {

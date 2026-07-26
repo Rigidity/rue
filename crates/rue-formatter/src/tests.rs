@@ -178,6 +178,129 @@ fn binary_chain_uses_one_continuation_indent() {
 }
 
 #[test]
+fn binary_precedence_adds_nested_continuation_indent() {
+    let options = FormatOptions {
+        max_width: 30,
+        ..FormatOptions::default()
+    };
+    let output = format_source("fn main(){first+another*third/fourth-first}", &options).unwrap();
+    expect![[r#"
+        fn main() {
+            first
+                + another
+                    * third
+                    / fourth
+                - first
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn higher_precedence_operands_indent_on_both_sides() {
+    let options = FormatOptions {
+        max_width: 18,
+        ..FormatOptions::default()
+    };
+    let output =
+        format_source("fn main(){first*second/third+fourth-fifth*sixth}", &options).unwrap();
+    expect![[r#"
+        fn main() {
+            first
+                    * second
+                    / third
+                + fourth
+                - fifth
+                    * sixth
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn binary_precedence_tiers_stack_continuation_indents() {
+    let options = FormatOptions {
+        max_width: 24,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){alpha||bravo&&charlie==delta|echo^foxtrot&golf<<hotel+india*juliet}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            alpha
+                || bravo
+                    && charlie
+                        == delta
+                            | echo
+                                ^ foxtrot
+                                    & golf
+                                        << hotel
+                                            + india
+                                                * juliet
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn parenthesized_binary_expressions_are_layout_boundaries() {
+    let options = FormatOptions {
+        max_width: 24,
+        ..FormatOptions::default()
+    };
+    let output = format_source("fn main(){first+(second*third/fourth)-fifth}", &options).unwrap();
+    expect![[r#"
+        fn main() {
+            first
+                + (
+                    second
+                        * third
+                        / fourth
+                )
+                - fifth
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn binary_precedence_obeys_exact_width_and_custom_indent() {
+    let exact = FormatOptions {
+        max_width: 24,
+        indent_width: 2,
+    };
+    let flat = format_source("fn main(){first+second*third}", &exact).unwrap();
+    expect![[r#"
+        fn main() {
+          first + second * third
+        }
+    "#]]
+    .assert_eq(&flat);
+
+    let narrow = FormatOptions {
+        max_width: 23,
+        indent_width: 2,
+    };
+    let wrapped = format_source("fn main(){first+second*third}", &narrow).unwrap();
+    expect![[r#"
+        fn main() {
+          first
+            + second
+              * third
+        }
+    "#]]
+    .assert_eq(&wrapped);
+    assert_eq!(format_source(&wrapped, &narrow).unwrap(), wrapped);
+}
+
+#[test]
 fn binary_operators_inside_if_are_not_chain_members() {
     check(
         r#"fn main(){1+if char=="["{2}else if char=="]"{3}else{4}}"#,

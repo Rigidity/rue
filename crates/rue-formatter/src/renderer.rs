@@ -49,7 +49,7 @@ pub(crate) fn render(doc: &Doc, options: &FormatOptions) -> String {
                 flat,
                 broken,
                 space_when_flat,
-                indent_on_break,
+                indent_levels_on_break,
             } => {
                 let separator_width = usize::from(*space_when_flat);
                 if column + separator_width <= options.max_width
@@ -72,8 +72,7 @@ pub(crate) fn render(doc: &Doc, options: &FormatOptions) -> String {
                     });
                 } else {
                     output.push('\n');
-                    let indent =
-                        command.indent + usize::from(*indent_on_break) * options.indent_width;
+                    let indent = command.indent + indent_levels_on_break * options.indent_width;
                     output.extend(std::iter::repeat_n(' ', indent));
                     column = indent;
                     commands.push(Command {
@@ -247,7 +246,7 @@ mod tests {
     fn fill_line_stays_flat_before_broken_suffix_when_prefix_fits() {
         let doc = Doc::concat([
             Doc::text("lhs"),
-            Doc::fill(Doc::text("== rhs"), false),
+            Doc::fill(Doc::text("== rhs"), 0),
             Doc::hard_line(),
             Doc::text("tail"),
         ]);
@@ -267,7 +266,7 @@ mod tests {
     fn fill_line_breaks_when_broken_prefix_does_not_fit() {
         let doc = Doc::concat([
             Doc::text("long_lhs"),
-            Doc::fill(Doc::text("== rhs"), true),
+            Doc::fill(Doc::text("== rhs"), 1),
             Doc::hard_line(),
             Doc::text("tail"),
         ]);

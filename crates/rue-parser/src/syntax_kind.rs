@@ -494,6 +494,22 @@ impl SyntaxKind {
         T![>>],
     ];
 
+    pub const fn binary_binding_power(self) -> Option<(u8, u8)> {
+        match self {
+            T![||] => Some((1, 2)),
+            T![&&] => Some((3, 4)),
+            T![==] | T![!=] => Some((5, 6)),
+            T![<] | T![>] | T![<=] | T![>=] => Some((7, 8)),
+            T![|] => Some((9, 10)),
+            T![^] => Some((11, 12)),
+            T![&] => Some((13, 14)),
+            T![<<] | T![>>] | T![>>>] => Some((15, 16)),
+            T![+] | T![-] => Some((17, 18)),
+            T![*] | T![/] | T![%] => Some((19, 20)),
+            _ => None,
+        }
+    }
+
     pub fn is_trivia(&self) -> bool {
         matches!(
             self,
@@ -629,6 +645,18 @@ impl SyntaxKind {
             SyntaxKind::StructFieldBinding => &[SyntaxKind::StructFieldBinding],
             SyntaxKind::Error => &[SyntaxKind::Error],
             SyntaxKind::Eof => &[SyntaxKind::Eof],
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SyntaxKind;
+
+    #[test]
+    fn every_binary_operator_has_binding_power() {
+        for operator in SyntaxKind::BINARY_OPS {
+            assert!(operator.binary_binding_power().is_some());
         }
     }
 }

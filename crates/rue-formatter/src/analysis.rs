@@ -31,13 +31,19 @@ pub(crate) enum ItemBoundary {
     Block,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ContinuationOperator {
+    pub(crate) token: TokenId,
+    pub(crate) depth: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TokenFacts {
     pub(crate) pair: Option<TokenId>,
     pub(crate) delimiter_style: Option<DelimiterStyle>,
     pub(crate) item_boundary: Option<ItemBoundary>,
     pub(crate) group_end: Option<TokenId>,
-    pub(crate) binary_operators: Vec<TokenId>,
+    pub(crate) continuation_operators: Vec<ContinuationOperator>,
     flags: TokenFlags,
 }
 
@@ -460,15 +466,20 @@ fn analyze_expression_groups(
                 .map_or(end, |current| current.max(end)),
         );
 
-        let mut operator_offsets = Vec::new();
+        let mut operators = Vec::new();
         if node.kind() == SyntaxKind::BinaryExpr {
-            collect_binary_operator_offsets(&node, &mut operator_offsets);
+            collect_binary_operators(&node, None, 0, &mut operators)?;
         } else {
-            collect_union_operator_offsets(&node, &mut operator_offsets);
+            collect_union_operators(&node, &mut operators);
         }
-        facts[start.index()].binary_operators = operator_offsets
+        facts[start.index()].continuation_operators = operators
             .into_iter()
-            .map(|offset| stream.token_id_at_offset(offset))
+            .map(|operator| {
+                Ok(ContinuationOperator {
+                    token: stream.token_id_at_offset(operator.offset)?,
+                    depth: operator.depth,
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?;
     }
     Ok(())
@@ -498,28 +509,61 @@ fn ast_node_kind(node: &SyntaxNode) -> Result<AstNodeKind, FormatError> {
     })
 }
 
-fn collect_binary_operator_offsets(node: &SyntaxNode, operators: &mut Vec<usize>) {
+#[derive(Debug, Clone, Copy)]
+struct OperatorOffset {
+    offset: usize,
+    depth: usize,
+}
+
+fn collect_binary_operators(
+    node: &SyntaxNode,
+    parent_precedence: Option<u8>,
+    parent_depth: usize,
+    operators: &mut Vec<OperatorOffset>,
+) -> Result<(), FormatError> {
+    let operator = node
+        .children_with_tokens()
+        .filter_map(rowan::NodeOrToken::into_token)
+        .find(|token| SyntaxKind::BINARY_OPS.contains(&token.kind()))
+        .ok_or_else(|| {
+            FormatError::Internal("binary expression has no direct operator".to_string())
+        })?;
+    let precedence = operator
+        .kind()
+        .binary_binding_power()
+        .ok_or_else(|| FormatError::Internal("binary operator has no precedence".to_string()))?
+        .0;
+    let depth =
+        parent_precedence.map_or(0, |parent| parent_depth + usize::from(precedence != parent));
+
     for element in node.children_with_tokens() {
         match element {
             rowan::NodeOrToken::Node(child) if child.kind() == SyntaxKind::BinaryExpr => {
-                collect_binary_operator_offsets(&child, operators);
+                collect_binary_operators(&child, Some(precedence), depth, operators)?;
             }
             rowan::NodeOrToken::Token(token) if SyntaxKind::BINARY_OPS.contains(&token.kind()) => {
-                operators.push(usize::from(token.text_range().start()));
+                operators.push(OperatorOffset {
+                    offset: usize::from(token.text_range().start()),
+                    depth,
+                });
             }
             _ => {}
         }
     }
+    Ok(())
 }
 
-fn collect_union_operator_offsets(node: &SyntaxNode, operators: &mut Vec<usize>) {
+fn collect_union_operators(node: &SyntaxNode, operators: &mut Vec<OperatorOffset>) {
     for element in node.children_with_tokens() {
         match element {
             rowan::NodeOrToken::Node(child) if child.kind() == SyntaxKind::UnionType => {
-                collect_union_operator_offsets(&child, operators);
+                collect_union_operators(&child, operators);
             }
             rowan::NodeOrToken::Token(token) if token.kind() == T![|] => {
-                operators.push(usize::from(token.text_range().start()));
+                operators.push(OperatorOffset {
+                    offset: usize::from(token.text_range().start()),
+                    depth: 0,
+                });
             }
             _ => {}
         }
