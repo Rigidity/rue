@@ -321,32 +321,25 @@ impl<'a> Formatter<'a> {
                 || comment.multiline
                 || trailing_gap.newlines > 0
         });
-        let leading = self.gap_doc_with_comments(
-            leading_gap,
-            match style {
-                DelimiterStyle::Block => Separator::Hard,
-                DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => Separator::Soft,
-                DelimiterStyle::Group
-                | DelimiterStyle::Fill
-                | DelimiterStyle::FillBraced
-                | DelimiterStyle::Hug
-                | DelimiterStyle::Vertical => Separator::None,
-            },
-            true,
-            false,
-        );
-        let trailing = self.gap_doc(
-            trailing_gap,
-            match style {
-                DelimiterStyle::Block => Separator::Hard,
-                DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => Separator::Soft,
-                DelimiterStyle::Group
-                | DelimiterStyle::Fill
-                | DelimiterStyle::FillBraced
-                | DelimiterStyle::Hug
-                | DelimiterStyle::Vertical => Separator::None,
-            },
-        );
+        let delimiter_separator = match style {
+            DelimiterStyle::Block => Separator::Hard,
+            DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => Separator::Soft,
+            DelimiterStyle::Group
+            | DelimiterStyle::Fill
+            | DelimiterStyle::FillBraced
+            | DelimiterStyle::Hug
+            | DelimiterStyle::Vertical => Separator::None,
+        };
+        let leading = if leading_gap.comments.is_empty() {
+            separator_doc(delimiter_separator)
+        } else {
+            self.gap_doc_with_comments(leading_gap, delimiter_separator, true, false)
+        };
+        let trailing = if trailing_gap.comments.is_empty() {
+            separator_doc(delimiter_separator)
+        } else {
+            self.gap_doc(trailing_gap, delimiter_separator)
+        };
 
         Ok(match style {
             DelimiterStyle::Block | DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => {

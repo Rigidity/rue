@@ -48,13 +48,25 @@ fn types_bindings_generics_and_imports() {
 #[test]
 fn preserves_one_intentional_blank_line() {
     check(
-        "fn main(){let a=1;\n\n\nlet b=2;\na+b}",
+        "fn main(){\n\nlet a=1;\n\n\nlet b=2;\na+b\n\n}",
         expect![[r#"
             fn main() {
                 let a = 1;
 
                 let b = 2;
                 a + b
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn removes_blank_lines_adjacent_to_braced_delimiters() {
+    check(
+        "fn main()->List<Condition>{[CreateCoinAnnouncement{\n\nmessage:nil,\n\n},]}",
+        expect![[r#"
+            fn main() -> List<Condition> {
+                [CreateCoinAnnouncement { message: nil }]
             }
         "#]],
     );
