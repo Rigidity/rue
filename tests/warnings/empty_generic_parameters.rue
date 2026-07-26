@@ -1,4 +1,4 @@
-fn main() -> Alias<>{
+fn main() -> Alias<> {
     function();
     Struct {}
 }

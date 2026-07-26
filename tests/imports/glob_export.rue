@@ -1,3 +1,5 @@
+import utils::*;
+
 mod utils {
     mod inner_utils {
         export fn inner_hello() -> String {
@@ -11,8 +13,6 @@ mod utils {
         inner_hello()
     }
 }
-
-import utils::*;
 
 fn main() -> String {
     inner_hello() + "! " + thing() + "!"

@@ -16,6 +16,7 @@ use indexmap::IndexMap;
 use rue_compiler::normalize_path;
 use rue_compiler::{Compiler, FileTree};
 use rue_diagnostic::DiagnosticSeverity;
+use rue_formatter::{FormatError, FormatOptions, format_source};
 use rue_lir::DebugDialect;
 use rue_options::CompilerOptions;
 use serde::{Deserialize, Serialize};
@@ -91,6 +92,7 @@ fn main() -> Result<()> {
 fn run_tests(filter_arg: Option<&str>, base_path: &Path, update: bool) -> Result<bool> {
     let mut failed = false;
 
+    check_formatting_corpus(base_path, filter_arg, update, &mut failed)?;
     walk_dir(&base_path.join("tests"), filter_arg, update, &mut failed)?;
     walk_dir(&base_path.join("examples"), filter_arg, update, &mut failed)?;
 
@@ -170,6 +172,67 @@ fn run_tests(filter_arg: Option<&str>, base_path: &Path, update: bool) -> Result
     }
 
     Ok(failed)
+}
+
+fn check_formatting_corpus(
+    base_path: &Path,
+    filter_arg: Option<&str>,
+    update: bool,
+    failed: &mut bool,
+) -> Result<()> {
+    println!("Checking Rue formatting");
+    let mut files = Vec::new();
+    collect_rue_files(&base_path.join("tests"), &mut files)?;
+    collect_rue_files(&base_path.join("examples"), &mut files)?;
+    collect_rue_files(&base_path.join("crates/rue-compiler/src/std"), &mut files)?;
+    files.sort();
+
+    for path in files {
+        let display = path.strip_prefix(base_path).unwrap_or(&path);
+        if let Some(filter) = filter_arg
+            && !display.to_string_lossy().contains(filter)
+        {
+            continue;
+        }
+
+        let original = fs::read_to_string(&path)?;
+        let formatted = match format_source(&original, &FormatOptions::default()) {
+            Ok(formatted) => formatted,
+            Err(FormatError::Parse { .. }) => continue,
+            Err(error) => {
+                eprintln!("Formatter failed for {}: {error}", display.display());
+                *failed = true;
+                continue;
+            }
+        };
+
+        if formatted == original {
+            continue;
+        }
+
+        *failed = true;
+        if update {
+            fs::write(&path, formatted)?;
+            eprintln!("Formatting differed, updated {}", display.display());
+        } else {
+            eprintln!("Formatting differs for {}", display.display());
+        }
+    }
+
+    Ok(())
+}
+
+fn collect_rue_files(path: &Path, files: &mut Vec<std::path::PathBuf>) -> Result<()> {
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_rue_files(&path, files)?;
+        } else if path.extension().is_some_and(|extension| extension == "rue") {
+            files.push(path);
+        }
+    }
+    Ok(())
 }
 
 fn walk_dir(path: &Path, filter_arg: Option<&str>, update: bool, failed: &mut bool) -> Result<()> {

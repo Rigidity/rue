@@ -186,19 +186,9 @@ pub fn expr_with(p: &mut Parser, checkpoint: Checkpoint, options: ExprOptions) -
             return false;
         };
 
-        let (left_binding_power, right_binding_power) = match op {
-            T![||] => (1, 2),
-            T![&&] => (3, 4),
-            T![==] | T![!=] => (5, 6),
-            T![<] | T![>] | T![<=] | T![>=] => (7, 8),
-            T![|] => (9, 10),
-            T![^] => (11, 12),
-            T![&] => (13, 14),
-            T![<<] | T![>>] | T![>>>] => (15, 16),
-            T![+] | T![-] => (17, 18),
-            T![*] | T![/] | T![%] => (19, 20),
-            _ => unreachable!(),
-        };
+        let (left_binding_power, right_binding_power) = op
+            .binary_binding_power()
+            .expect("BINARY_OPS have binding power");
 
         if left_binding_power < options.minimum_binding_power {
             return false;

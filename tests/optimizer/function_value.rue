@@ -9,7 +9,7 @@ fn main() {
 
     // So the output of this will be different depending on the build type
     let actual = tree_hash(fn(a: Int, b: Int) => a + b);
-    
+
     // However, this test should pass in both debug and optimized builds
     assert actual == debug_hash || actual == optimized_hash;
 }

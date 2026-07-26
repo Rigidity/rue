@@ -35,4 +35,3 @@ struct B {
 }
 
 type Alias = A;
-

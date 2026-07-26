@@ -1,5 +1,4 @@
-extern fn external<T>(value: T, proof: Proof) -> Any
-    from "./add.hex";
+extern fn external<T>(value: T, proof: Proof) -> Any from "./add.hex";
 
 struct FirstProof {
     value: Int,

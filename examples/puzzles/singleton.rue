@@ -28,25 +28,33 @@ fn main(
 ) -> List<Condition> {
     // Verify the amount and parent coin id
     // TODO: proof is LineageProof is hand optimized here, it should be done by the compiler
-    let (is_lineage, parent_coin_id) = if unchecked_cast::<Bool>((proof as (Any, (Any, Any))).rest.rest) {
+    let (is_lineage, parent_coin_id) = if unchecked_cast::<Bool>(
+        (proof as (Any, (Any, Any))).rest.rest,
+    ) {
         inline let proof = unchecked_cast::<LineageProof>(proof);
-        (true, coinid(
-            proof.parent_parent_coin_info,
-            singleton_puzzle_hash(singleton, proof.parent_inner_puzzle_hash),
-            proof.parent_amount,
-        ))
+        (
+            true,
+            coinid(
+                proof.parent_parent_coin_info,
+                singleton_puzzle_hash(singleton, proof.parent_inner_puzzle_hash),
+                proof.parent_amount,
+            ),
+        )
     } else {
         inline let proof = unchecked_cast::<EveProof>(proof);
-        (false, coinid(
-            proof.parent_parent_coin_info,
-            singleton.launcher_puzzle_hash,
-            proof.parent_amount,
-        ))
+        (
+            false,
+            coinid(
+                proof.parent_parent_coin_info,
+                singleton.launcher_puzzle_hash,
+                proof.parent_amount,
+            ),
+        )
     };
-    
+
     let valid_amount = my_amount % 2 == 1;
     let valid_lineage = is_lineage | (parent_coin_id == singleton.launcher_id);
-    
+
     assert valid_amount & valid_lineage;
 
     // Assert the amount and parent coin id
@@ -55,11 +63,7 @@ fn main(
 
     let conditions = morph_conditions(singleton, inner_puzzle(...inner_solution), false);
 
-    [
-        assert_amount,
-        assert_parent,
-        ...conditions,
-    ]
+    [assert_amount, assert_parent, ...conditions]
 }
 
 inline fn singleton_puzzle_hash(singleton: Singleton, inner_puzzle_hash: Bytes32) -> Bytes32 {
@@ -99,42 +103,29 @@ fn morph_conditions(
 }
 
 test fn tests() {
-  let parent_parent_coin_info = sha256("parent_parent_coin_info");
-  let launcher_puzzle_hash = sha256("launcher_puzzle");
-  let launcher_id = coinid(parent_parent_coin_info, launcher_puzzle_hash, 0);
+    let parent_parent_coin_info = sha256("parent_parent_coin_info");
+    let launcher_puzzle_hash = sha256("launcher_puzzle");
+    let launcher_id = coinid(parent_parent_coin_info, launcher_puzzle_hash, 0);
 
-  let singleton = Singleton {
-    mod_hash: tree_hash(main),
-    launcher_id,
-    launcher_puzzle_hash,
-  };
+    let singleton = Singleton { mod_hash: tree_hash(main), launcher_id, launcher_puzzle_hash };
 
-  let inner_puzzle = fn(...solution: List<Condition>) => solution;
+    let inner_puzzle = fn(...solution: List<Condition>) => solution;
 
-  let proof = EveProof {
-    parent_parent_coin_info,
-    parent_amount: 0,
-  };
+    let proof = EveProof { parent_parent_coin_info, parent_amount: 0 };
 
-  let p2_puzzle_hash = sha256("p2_puzzle_hash");
+    let p2_puzzle_hash = sha256("p2_puzzle_hash");
 
-  let conditions = main(
-    singleton,
-    inner_puzzle,
-    proof,
-    1,
-    [CreateCoin {
-      puzzle_hash: p2_puzzle_hash,
-      amount: 1,
-    }],
-  );
+    let conditions = main(
+        singleton,
+        inner_puzzle,
+        proof,
+        1,
+        [CreateCoin { puzzle_hash: p2_puzzle_hash, amount: 1 }],
+    );
 
-  assert tree_hash(conditions) == tree_hash([
-    AssertMyAmount { amount: 1 },
-    AssertMyParentId { parent_id: launcher_id },
-    CreateCoin {
-      puzzle_hash: singleton_puzzle_hash(singleton, p2_puzzle_hash),
-      amount: 1,
-    },
-  ]);
+    assert tree_hash(conditions) == tree_hash([
+        AssertMyAmount { amount: 1 },
+        AssertMyParentId { parent_id: launcher_id },
+        CreateCoin { puzzle_hash: singleton_puzzle_hash(singleton, p2_puzzle_hash), amount: 1 },
+    ]);
 }

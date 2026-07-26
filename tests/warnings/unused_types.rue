@@ -1,8 +1,6 @@
 type Recursive = Recursive;
-
 type A = B;
 type B = A;
-
 type Used = 42;
 type Unused = "Hello, world!";
 
@@ -19,7 +17,6 @@ struct UnusedStruct {
 
 type UsedAlias = UsedStruct;
 type UnusedAlias = UnusedStruct;
-
 type Thing1 = 42;
 type Thing2 = 42;
 

@@ -1,4 +1,5 @@
 const NUM: Int = 42;
+
 inline const NUM_INLINE: Int = 42;
 
 test fn implicit_inline_binding() -> Int {

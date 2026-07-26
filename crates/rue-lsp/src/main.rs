@@ -6,20 +6,22 @@ use cache::Cache;
 use indexmap::IndexMap;
 use rue_compiler::{Compiler, FileTree, normalize_path};
 use rue_diagnostic::SourceKind;
+use rue_formatter::{FormatError, FormatOptions, format_source};
 
 use std::collections::HashMap;
+use std::fs;
 use std::sync::{Arc, Mutex};
 
 use rue_options::find_project;
 use send_wrapper::SendWrapper;
-use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, LanguageString,
-    Location, MarkedString, MessageType, OneOf, Position, Range, ReferenceParams,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    DocumentFormattingParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents,
+    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    LanguageString, Location, MarkedString, MessageType, OneOf, Position, Range, ReferenceParams,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -43,6 +45,7 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(vec![
                         ".".to_string(),
@@ -73,7 +76,8 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.on_change(params.text_document.uri, None).await;
+        self.on_change(params.text_document.uri, Some(params.text_document.text))
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -105,6 +109,10 @@ impl LanguageServer for Backend {
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         Ok(self.on_completion(&params))
+    }
+
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
+        self.on_formatting(&params).map(Some)
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -185,6 +193,27 @@ impl Backend {
         }
 
         diagnostics
+    }
+
+    fn on_formatting(&self, params: &DocumentFormattingParams) -> Result<Vec<TextEdit>> {
+        let uri = &params.text_document.uri;
+        let path = uri
+            .to_file_path()
+            .map_err(|()| Error::invalid_params("document URI is not a file"))?;
+        let source_kind =
+            normalize_path(&path).map_err(|error| Error::invalid_params(error.to_string()))?;
+        let project =
+            find_project(&path, false).map_err(|error| Error::invalid_params(error.to_string()))?;
+        let options = project.map_or_else(FormatOptions::default, |project| project.format_options);
+        let source = self.file_cache.lock().unwrap().get(&source_kind).cloned();
+        let source = match source {
+            Some(source) => source,
+            None => fs::read_to_string(&path)
+                .map_err(|error| Error::invalid_params(error.to_string()))?,
+        };
+
+        formatting_edits(&source, &options)
+            .map_err(|error| Error::invalid_params(error.to_string()))
     }
 
     fn on_hover(&self, params: &HoverParams) -> Option<Hover> {
@@ -290,6 +319,32 @@ impl Backend {
 
         Some(CompletionResponse::Array(completions))
     }
+}
+
+fn formatting_edits(
+    source: &str,
+    options: &FormatOptions,
+) -> std::result::Result<Vec<TextEdit>, FormatError> {
+    let formatted = format_source(source, options)?;
+    if formatted == source {
+        return Ok(Vec::new());
+    }
+
+    Ok(vec![TextEdit::new(
+        Range::new(Position::new(0, 0), document_end(source)),
+        formatted,
+    )])
+}
+
+fn document_end(source: &str) -> Position {
+    let line = source.bytes().filter(|byte| *byte == b'\n').count();
+    let last_line = source
+        .rsplit_once('\n')
+        .map_or(source, |(_, last_line)| last_line);
+    let last_line = last_line.strip_suffix('\r').unwrap_or(last_line);
+    let character = last_line.encode_utf16().count();
+
+    Position::new(line.try_into().unwrap(), character.try_into().unwrap())
 }
 
 fn diagnostic(diagnostic: &rue_diagnostic::Diagnostic) -> Diagnostic {

@@ -1,0 +1,27 @@
+[package]
+name = "rue-formatter"
+version = "0.10.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "An AST formatter for the Rue programming language."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/xch-dev/rue"
+repository = "https://github.com/xch-dev/rue"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+rue-ast = { workspace = true }
+rue-diagnostic = { workspace = true }
+rue-lexer = { workspace = true }
+rue-options = { workspace = true }
+rue-parser = { workspace = true }
+rowan = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+expect-test = { workspace = true }

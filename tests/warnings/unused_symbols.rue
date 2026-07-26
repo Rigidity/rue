@@ -26,6 +26,7 @@ test fn tests() -> Int {
 const USED_BY_MAIN: Int = 42;
 const USED_BY_TESTS: Int = 34;
 const USED_BY_BOTH: Int = 69;
+
 const UNUSED: Int = 0;
 
 fn used_by_main() {}
