@@ -1712,7 +1712,7 @@ dependencies = [
 
 [[package]]
 name = "rue-ast"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "num-traits",
  "paste",
@@ -1721,7 +1721,7 @@ dependencies = [
 
 [[package]]
 name = "rue-cli"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chialisp",
@@ -1742,7 +1742,7 @@ dependencies = [
 
 [[package]]
 name = "rue-compiler"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "clvmr",
  "expect-test",
@@ -1767,14 +1767,14 @@ dependencies = [
 
 [[package]]
 name = "rue-diagnostic"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "thiserror 2.0.14",
 ]
 
 [[package]]
 name = "rue-formatter"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "expect-test",
  "rowan",
@@ -1788,7 +1788,7 @@ dependencies = [
 
 [[package]]
 name = "rue-hir"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "derive_more",
  "expect-test",
@@ -1805,14 +1805,14 @@ dependencies = [
 
 [[package]]
 name = "rue-lexer"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "expect-test",
 ]
 
 [[package]]
 name = "rue-lir"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "chialisp",
  "clvm-traits",
@@ -1829,7 +1829,7 @@ dependencies = [
 
 [[package]]
 name = "rue-lsp"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "indexmap",
  "rowan",
@@ -1846,7 +1846,7 @@ dependencies = [
 
 [[package]]
 name = "rue-options"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "serde",
  "thiserror 2.0.14",
@@ -1855,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "rue-parser"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "derive_more",
  "expect-test",
@@ -1870,7 +1870,7 @@ dependencies = [
 
 [[package]]
 name = "rue-tests"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chialisp",
@@ -1888,7 +1888,7 @@ dependencies = [
 
 [[package]]
 name = "rue-types"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "clvmr",
  "derive_more",
@@ -1903,7 +1903,7 @@ dependencies = [
 
 [[package]]
 name = "rue-wasm"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "chialisp",
  "clvmr",
