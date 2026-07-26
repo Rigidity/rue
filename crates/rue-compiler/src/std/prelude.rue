@@ -1,16 +1,10 @@
-export utils::*;
-
-export tree_hash::*;
-
-export curry_tree_hash::*;
-
 export conditions::message_flags::*;
-
 export conditions::opcodes::*;
-
 export conditions::types::*;
-
+export curry_tree_hash::*;
 export merkle::*;
+export tree_hash::*;
+export utils::*;
 
 export mod std {
     export conditions;
