@@ -60,6 +60,21 @@ fn comment_and_blank_line_boundaries() {
 }
 
 #[test]
+fn separated_file_banner_stays_detached_from_first_item() {
+    check(
+        "// This puzzle has not been audited.\n\n// Item documentation.\nstruct Example{value:Int}",
+        expect![[r#"
+            // This puzzle has not been audited.
+
+            // Item documentation.
+            struct Example {
+                value: Int,
+            }
+        "#]],
+    );
+}
+
+#[test]
 fn comments_inside_broken_delimiters() {
     let options = FormatOptions {
         max_width: 32,

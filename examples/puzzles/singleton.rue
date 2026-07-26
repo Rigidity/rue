@@ -1,4 +1,5 @@
 // This puzzle has not been audited or tested, and is for example purposes only.
+
 struct Singleton {
     mod_hash: Bytes32,
     launcher_id: Bytes32,
