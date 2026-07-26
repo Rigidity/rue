@@ -69,8 +69,8 @@ pub(crate) enum CommentPlacement {
 
 #[derive(Debug, Clone)]
 pub(crate) struct TokenStream {
-    pub(crate) tokens: Vec<Token>,
-    pub(crate) gaps: Vec<Gap>,
+    tokens: Vec<Token>,
+    gaps: Vec<Gap>,
     pub(crate) comment_count: usize,
     token_by_offset: HashMap<usize, TokenId>,
 }
@@ -186,6 +186,23 @@ impl TokenStream {
             .expect("TokenId was validated by this token stream")
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.tokens.len()
+    }
+
+    pub(crate) fn token_ids(&self) -> impl Iterator<Item = (TokenId, &Token)> {
+        self.tokens
+            .iter()
+            .enumerate()
+            .map(|(index, token)| (TokenId(index), token))
+    }
+
+    pub(crate) fn tokens_in(&self, span: TokenSpan) -> &[Token] {
+        self.tokens
+            .get(span.start().index()..span.end().index())
+            .expect("TokenSpan was validated by this token stream")
+    }
+
     pub(crate) fn gap_before(&self, id: TokenId) -> &Gap {
         self.gap(TokenBoundary(id.index()))
     }
@@ -194,6 +211,27 @@ impl TokenStream {
         self.gaps
             .get(boundary.index())
             .expect("TokenBoundary was validated by this token stream")
+    }
+
+    pub(crate) fn first_gap(&self) -> &Gap {
+        self.gap(TokenBoundary(0))
+    }
+
+    pub(crate) fn final_gap(&self) -> &Gap {
+        self.gaps
+            .last()
+            .expect("a token stream always has a final gap")
+    }
+
+    pub(crate) fn gaps(&self) -> impl Iterator<Item = (TokenBoundary, &Gap)> {
+        self.gaps
+            .iter()
+            .enumerate()
+            .map(|(index, gap)| (TokenBoundary(index), gap))
+    }
+
+    pub(crate) fn end_boundary(&self) -> TokenBoundary {
+        TokenBoundary(self.tokens.len())
     }
 
     pub(crate) fn token_id(&self, index: usize) -> Result<TokenId, FormatError> {
@@ -219,10 +257,12 @@ impl TokenStream {
     }
 
     pub(crate) fn boundary_before(&self, id: TokenId) -> TokenBoundary {
+        let _ = self.token(id);
         TokenBoundary(id.index())
     }
 
     pub(crate) fn boundary_after(&self, id: TokenId) -> TokenBoundary {
+        let _ = self.token(id);
         TokenBoundary(id.index() + 1)
     }
 
@@ -235,6 +275,7 @@ impl TokenStream {
     }
 
     pub(crate) fn previous_token(&self, id: TokenId) -> Option<TokenId> {
+        let _ = self.token(id);
         id.index().checked_sub(1).map(TokenId)
     }
 

@@ -76,11 +76,11 @@ impl<'a> Formatter<'a> {
         }
         docs.push(self.trivia_doc(&footer, Separator::None));
 
-        if self.consumed_tokens != self.stream.tokens.len() {
+        if self.consumed_tokens != self.stream.len() {
             return Err(FormatError::Internal(format!(
                 "emitted {} of {} significant tokens",
                 self.consumed_tokens,
-                self.stream.tokens.len()
+                self.stream.len()
             )));
         }
         if self.consumed_comments != self.stream.comment_count {
@@ -103,12 +103,7 @@ impl<'a> Formatter<'a> {
             .group_end
             .is_some_and(|end| self.stream.boundary_after(end) == span.end());
         if exact_group {
-            if !self
-                .layout
-                .facts(span.start())
-                .binary_operators
-                .is_empty()
-            {
+            if !self.layout.facts(span.start()).binary_operators.is_empty() {
                 return Ok(self.binary_span(span)?.group());
             }
             if allow_outer_group {
@@ -122,7 +117,7 @@ impl<'a> Formatter<'a> {
             let mut emitted_separator = false;
             let facts = self.layout.facts(index);
             let atom_end = if let Some(group_end) = facts.group_end
-                && self.stream.boundary_after(group_end).index() < span.end().index()
+                && group_end.index() < span.end().index()
                 && !(index == span.start() && self.stream.boundary_after(group_end) == span.end())
             {
                 let next = self.stream.next_token(group_end).ok_or_else(|| {
@@ -132,12 +127,11 @@ impl<'a> Formatter<'a> {
                 })?;
                 let gap = self.stream.gap_before(next);
                 if !facts.binary_operators.is_empty()
-                    && self.stream.tokens.get(next.index()).is_some_and(|_| {
-                        self.layout
-                            .facts(next)
-                            .delimiter_style
-                            .is_some_and(|style| style == DelimiterStyle::Block)
-                    })
+                    && self
+                        .layout
+                        .facts(next)
+                        .delimiter_style
+                        .is_some_and(|style| style == DelimiterStyle::Block)
                     && gap.comments.is_empty()
                     && gap.newlines <= 1
                 {
@@ -353,7 +347,11 @@ impl<'a> Formatter<'a> {
         close: Doc,
         plan: &ImportGroupPlan,
     ) -> Result<Doc, FormatError> {
-        let mut docs = vec![self.trivia_doc(&plan.opening, Separator::None)];
+        let mut opening = plan.opening.clone();
+        if let Some(first) = opening.gap.comments.first_mut() {
+            first.newlines_before = 0;
+        }
+        let mut docs = vec![self.trivia_doc(&opening, Separator::None)];
         for (position, item) in plan.items.iter().enumerate() {
             let mut leading = item.leading.clone();
             if position == 0

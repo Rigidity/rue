@@ -23,7 +23,7 @@ pub(crate) fn comment_signature(
 
     append_trivia(&mut signature, "file", "header", &document_plan.header);
     append_trivia(&mut signature, "file", "footer", &document_plan.footer);
-    covered_gaps.insert(stream.tokens.len());
+    covered_gaps.insert(stream.end_boundary().index());
 
     let document_units: Vec<_> = document_plan
         .items
@@ -65,7 +65,8 @@ pub(crate) fn comment_signature(
         }
     }
 
-    for (gap_index, gap) in stream.gaps.iter().enumerate() {
+    for (boundary, gap) in stream.gaps() {
+        let gap_index = boundary.index();
         if covered_gaps.contains(&gap_index) {
             continue;
         }
@@ -114,16 +115,18 @@ fn normalized_relative_gap(stream: &TokenStream, span: TokenSpan, gap: usize) ->
 }
 
 fn is_optional_trailing_comma(stream: &TokenStream, index: usize) -> bool {
-    stream
-        .tokens
-        .get(index)
-        .is_some_and(|token| token.kind == rue_parser::T![,])
-        && stream.tokens.get(index + 1).is_some_and(|token| {
-            matches!(
-                token.kind,
-                rue_parser::T![')'] | rue_parser::T![']'] | rue_parser::T!['}'] | rue_parser::T![>]
-            )
-        })
+    stream.token_id(index).is_ok_and(|id| {
+        stream.token(id).kind == rue_parser::T![,]
+            && stream.next_token(id).is_some_and(|next| {
+                matches!(
+                    stream.token(next).kind,
+                    rue_parser::T![')']
+                        | rue_parser::T![']']
+                        | rue_parser::T!['}']
+                        | rue_parser::T![>]
+                )
+            })
+    })
 }
 
 fn contains_gap(span: TokenSpan, gap: usize) -> bool {
@@ -135,13 +138,13 @@ fn find_close(
     stream: &TokenStream,
 ) -> Result<crate::token_stream::TokenId, FormatError> {
     let mut depth = 0;
-    for index in open.index()..stream.tokens.len() {
-        match stream.tokens[index].kind {
+    for (id, token) in stream.token_ids().skip(open.index()) {
+        match token.kind {
             rue_parser::T!['{'] => depth += 1,
             rue_parser::T!['}'] => {
                 depth -= 1;
                 if depth == 0 {
-                    return stream.token_id(index);
+                    return Ok(id);
                 }
             }
             _ => {}

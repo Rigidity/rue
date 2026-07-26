@@ -74,15 +74,13 @@ pub(crate) fn plan_document(
         )
         .then_some(item.syntax().kind())
         .filter(|_| !item.syntax().text().to_string().contains('\n'));
-        let path_key = stream.tokens[span.start().index()..span.end().index()]
+        let path_key = stream
+            .tokens_in(span)
             .iter()
             .filter(|token| !matches!(token.kind, T![import] | T![export] | T![;]))
             .map(|token| token.text.as_str())
             .collect::<String>();
-        let keyword_key = stream
-            .tokens
-            .get(span.start().index())
-            .map_or("", |token| token.text.as_str());
+        let keyword_key = stream.token(span.start()).text.as_str();
 
         items.push(DocumentItem {
             span,
@@ -98,7 +96,7 @@ pub(crate) fn plan_document(
 
     if items.is_empty() {
         return Ok(DocumentPlan {
-            header: Trivia::new(stream.gaps[0].clone()),
+            header: Trivia::new(stream.first_gap().clone()),
             items,
             footer: Trivia::default(),
         });
@@ -114,12 +112,7 @@ pub(crate) fn plan_document(
     let last = items
         .last_mut()
         .expect("non-empty document plan has a final item");
-    let (trailing, footer) = split_between(
-        stream
-            .gaps
-            .last()
-            .expect("a token stream always has a final gap"),
-    );
+    let (trailing, footer) = split_between(stream.final_gap());
     last.trailing = trailing;
 
     items.sort_by(
@@ -173,7 +166,8 @@ pub(crate) fn plan_import_groups(
             let comma = stream
                 .token_at(span.end())
                 .filter(|id| stream.token(*id).kind == T![,]);
-            let sort_key = stream.tokens[span.start().index()..span.end().index()]
+            let sort_key = stream
+                .tokens_in(span)
                 .iter()
                 .map(|token| token.text.as_str())
                 .collect();
@@ -249,13 +243,13 @@ fn node_span(node: &SyntaxNode, stream: &TokenStream) -> Result<TokenSpan, Forma
 
 fn find_matching_close(open: TokenId, stream: &TokenStream) -> Result<TokenId, FormatError> {
     let mut depth = 0;
-    for index in open.index()..stream.tokens.len() {
-        match stream.tokens[index].kind {
+    for (id, token) in stream.token_ids().skip(open.index()) {
+        match token.kind {
             T!['{'] => depth += 1,
             T!['}'] => {
                 depth -= 1;
                 if depth == 0 {
-                    return stream.token_id(index);
+                    return Ok(id);
                 }
             }
             _ => {}

@@ -81,7 +81,7 @@ pub(crate) struct Layout {
 
 impl Layout {
     pub(crate) fn new(document: &AstDocument, stream: &TokenStream) -> Result<Self, FormatError> {
-        let mut facts = vec![TokenFacts::default(); stream.tokens.len()];
+        let mut facts = vec![TokenFacts::default(); stream.len()];
         pair_delimiters(stream, &mut facts)?;
         analyze_nodes(document.syntax(), stream, &mut facts)?;
         analyze_boundaries(document, stream, &mut facts)?;
@@ -101,8 +101,7 @@ impl Layout {
 
 fn pair_delimiters(stream: &TokenStream, facts: &mut [TokenFacts]) -> Result<(), FormatError> {
     let mut stack: Vec<(SyntaxKind, TokenId)> = Vec::new();
-    for (index, token) in stream.tokens.iter().enumerate() {
-        let id = stream.token_id(index)?;
+    for (id, token) in stream.token_ids() {
         match token.kind {
             T!['('] | T!['['] | T!['{'] => stack.push((token.kind, id)),
             T![')'] | T![']'] | T!['}'] => {
