@@ -5,8 +5,8 @@
 //! a 100-column target, four-space indentation, LF line endings, no trailing
 //! whitespace, at most one blank line, and exactly one final newline.
 //!
-//! Configuration files, range formatting, malformed-tree formatting, comment
-//! reflow, CLI integration, and LSP integration are intentionally deferred.
+//! Range formatting, malformed-tree formatting, and comment reflow are
+//! intentionally deferred.
 
 mod analysis;
 mod document;
@@ -23,6 +23,7 @@ use std::sync::Arc;
 use rue_ast::{AstDocument, AstNode};
 use rue_diagnostic::{Diagnostic, Source, SourceKind};
 use rue_lexer::Lexer;
+pub use rue_options::FormatOptions;
 use rue_parser::{Parser, SyntaxKind, SyntaxNode};
 use thiserror::Error;
 
@@ -30,24 +31,6 @@ use crate::{
     equivalence::comment_signature, format::format_document, renderer::render,
     token_stream::TokenStream,
 };
-
-/// Deterministic formatter settings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FormatOptions {
-    /// Preferred maximum line width.
-    pub max_width: usize,
-    /// Number of spaces in one indentation level.
-    pub indent_width: usize,
-}
-
-impl Default for FormatOptions {
-    fn default() -> Self {
-        Self {
-            max_width: 100,
-            indent_width: 4,
-        }
-    }
-}
 
 /// A failure that prevents a safe formatting result.
 #[derive(Debug, Error)]

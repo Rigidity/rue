@@ -5,7 +5,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{CompilerOptions, Manifest};
+use crate::{CompilerOptions, FormatOptions, Manifest};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -23,6 +23,7 @@ pub enum Error {
 pub struct Project {
     pub manifest: Option<Manifest>,
     pub options: CompilerOptions,
+    pub format_options: FormatOptions,
     pub entrypoint: PathBuf,
 }
 
@@ -45,6 +46,7 @@ pub fn find_project(path: &Path, debug: bool) -> Result<Option<Project>, Error> 
         }
 
         return Ok(Some(Project {
+            format_options: manifest.formatter,
             manifest: Some(manifest),
             options,
             entrypoint,
@@ -69,6 +71,7 @@ pub fn find_project(path: &Path, debug: bool) -> Result<Option<Project>, Error> 
             } else {
                 CompilerOptions::default()
             },
+            format_options: FormatOptions::default(),
             entrypoint: path.to_path_buf(),
         }));
     }
@@ -81,6 +84,7 @@ pub fn find_project(path: &Path, debug: bool) -> Result<Option<Project>, Error> 
             } else {
                 CompilerOptions::default()
             },
+            format_options: FormatOptions::default(),
             entrypoint: path.to_path_buf(),
         }));
     }

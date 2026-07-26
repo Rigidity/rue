@@ -29,7 +29,10 @@ pub fn format(args: &FmtArgs) -> Result<()> {
     for path in targets {
         let source = fs::read_to_string(&path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
-        let formatted = format_source(&source, &FormatOptions::default())
+        let options = find_project(&path, false)
+            .with_context(|| format!("Failed to resolve project for {}", path.display()))?
+            .map_or_else(FormatOptions::default, |project| project.format_options);
+        let formatted = format_source(&source, &options)
             .with_context(|| format!("Failed to format {}", path.display()))?;
         if formatted != source {
             pending.push((path, formatted));

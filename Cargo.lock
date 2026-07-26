@@ -1781,6 +1781,7 @@ dependencies = [
  "rue-ast",
  "rue-diagnostic",
  "rue-lexer",
+ "rue-options",
  "rue-parser",
  "thiserror 2.0.14",
 ]
@@ -1834,6 +1835,7 @@ dependencies = [
  "rowan",
  "rue-compiler",
  "rue-diagnostic",
+ "rue-formatter",
  "rue-hir",
  "rue-options",
  "rue-types",

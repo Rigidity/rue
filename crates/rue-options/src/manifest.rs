@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Manifest {
     pub compiler: CompilerSection,
+    #[serde(default)]
+    pub formatter: FormatOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +26,22 @@ impl Default for CompilerSection {
             entrypoint: "puzzles".to_string(),
             std: None,
             dist_dir: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FormatOptions {
+    pub max_width: usize,
+    pub indent_width: usize,
+}
+
+impl Default for FormatOptions {
+    fn default() -> Self {
+        Self {
+            max_width: 100,
+            indent_width: 4,
         }
     }
 }
