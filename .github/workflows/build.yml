@@ -34,6 +34,9 @@ jobs:
       - name: Fmt
         run: cargo fmt --all -- --files-with-diff --check
 
+      - name: Rue fmt
+        run: cargo run --quiet --package rue-cli -- fmt 'examples/**/*.rue' 'tests/**/*.rue' 'crates/rue-compiler/src/std/**/*.rue' --check
+
       - name: Publish (dry run)
         run: |
           cargo binstall cargo-workspaces

@@ -1,5 +1,3 @@
-#![allow(clippy::wildcard_imports)]
-
 mod arg_list;
 mod ops;
 mod truthy;

@@ -21,12 +21,17 @@ use rue_diagnostic::{DiagnosticSeverity, SourceKind};
 use rue_lir::DebugDialect;
 use rue_options::{Manifest, find_project};
 
+mod fmt;
+
+use fmt::*;
+
 #[derive(Debug, Parser)]
 pub enum Command {
     Init(InitArgs),
     Build(BuildArgs),
     Test(TestArgs),
     Debug(DebugArgs),
+    Fmt(FmtArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -73,6 +78,7 @@ fn main() -> Result<()> {
         Command::Build(args) => build(args),
         Command::Test(args) => test(args),
         Command::Debug(args) => debug(args),
+        Command::Fmt(args) => format(&args),
     }
 }
 
