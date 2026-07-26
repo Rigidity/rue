@@ -11,9 +11,6 @@ inline fn factorial(num: Int) -> Int {
 }
 
 const A: Int = A;
-
 const B: Int = C;
-
 const C: Int = B;
-
 inline const D: Int = D;

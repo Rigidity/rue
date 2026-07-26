@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Write};
 
-use rue_ast::{AstDocument, AstItem, AstNode};
+use rue_ast::{AstDocument, AstFunctionItem, AstItem, AstNode};
 use rue_parser::{SyntaxKind, SyntaxNode, T};
 
 use crate::{
@@ -13,12 +13,19 @@ use crate::{
 pub(crate) struct DocumentItem {
     pub(crate) span: TokenSpan,
     pub(crate) import_group: Option<usize>,
-    pub(crate) compact_group: Option<SyntaxKind>,
+    pub(crate) compact_group: Option<CompactGroup>,
     pub(crate) leading: Trivia,
     pub(crate) trailing: Trivia,
     pub(crate) identity_key: String,
     sort_key: String,
     original_index: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompactGroup {
+    Constant,
+    TypeAlias,
+    ExternDeclaration,
 }
 
 #[derive(Debug)]
@@ -68,12 +75,22 @@ pub(crate) fn plan_document(
         });
         previous_was_import = is_import;
 
-        let compact_group = matches!(
-            item.syntax().kind(),
-            SyntaxKind::ConstantItem | SyntaxKind::TypeAliasItem
-        )
-        .then_some(item.syntax().kind())
-        .filter(|_| !item.syntax().text().to_string().contains('\n'));
+        let compact_group = match item.syntax().kind() {
+            SyntaxKind::ConstantItem if !item.syntax().text().to_string().contains('\n') => {
+                Some(CompactGroup::Constant)
+            }
+            SyntaxKind::TypeAliasItem if !item.syntax().text().to_string().contains('\n') => {
+                Some(CompactGroup::TypeAlias)
+            }
+            SyntaxKind::FunctionItem
+                if AstFunctionItem::cast(item.syntax().clone()).is_some_and(|function| {
+                    function.extern_kw().is_some() && function.body().is_none()
+                }) =>
+            {
+                Some(CompactGroup::ExternDeclaration)
+            }
+            _ => None,
+        };
         let path_key = stream
             .tokens_in(span)
             .iter()

@@ -1,9 +1,6 @@
 const HELLO: String = "Hello";
-
 const WORLD: String = "world";
-
 const GREETING: String = greet(WORLD);
-
 const MESSAGE: String = GREETING + " How are you doing?";
 
 fn main() -> String {

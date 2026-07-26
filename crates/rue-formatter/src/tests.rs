@@ -518,6 +518,23 @@ fn item_modifiers_modules_and_extern_functions() {
 }
 
 #[test]
+fn bodyless_extern_functions_can_form_compact_groups() {
+    check(
+        "extern fn first()->Int from \"./first.hex\";\nextern fn second()->Int from \"./second.hex\";\n\nextern fn third()->Int from \"./third.hex\";\nextern fn with_body()->Int{1}",
+        expect![[r#"
+            extern fn first() -> Int from "./first.hex";
+            extern fn second() -> Int from "./second.hex";
+
+            extern fn third() -> Int from "./third.hex";
+
+            extern fn with_body() -> Int {
+                1
+            }
+        "#]],
+    );
+}
+
+#[test]
 fn struct_field_forms() {
     check(
         "struct Example<T>{opcode=42,value:T,optional:T=nil,...rest:Any=nil}",

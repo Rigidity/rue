@@ -1,8 +1,6 @@
-import super::x;
-
 import super;
-
 import super::super;
+import super::x;
 
 mod a {
     import super::a;

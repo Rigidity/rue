@@ -1,24 +1,14 @@
-import single::a;
-
-import glob::*;
-
-import shadow_1::c;
-
-import shadow_1::*;
-
-import shadow_2::*;
-
-import shadow_2::d;
-
-import private::*;
-
-import empty::*;
-
 import deeply::nested;
-
-import nested::module;
-
+import empty::*;
+import glob::*;
 import module::used;
+import nested::module;
+import private::*;
+import shadow_1::*;
+import shadow_1::c;
+import shadow_2::*;
+import shadow_2::d;
+import single::a;
 
 mod single {
     export fn a() -> Int {

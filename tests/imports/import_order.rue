@@ -1,5 +1,4 @@
 import a::hello_world_a;
-
 import b::hello_world_b;
 
 mod a {
