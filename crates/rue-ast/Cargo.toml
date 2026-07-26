@@ -17,3 +17,6 @@ workspace = true
 [dependencies]
 rue-parser = { workspace = true }
 paste = { workspace = true }
+
+[dev-dependencies]
+num-traits = { workspace = true }

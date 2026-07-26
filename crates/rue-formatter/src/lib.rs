@@ -15,7 +15,6 @@ mod equivalence;
 mod format;
 mod ordering;
 mod renderer;
-mod syntax;
 mod token_stream;
 mod trivia;
 
@@ -59,9 +58,9 @@ pub enum FormatError {
         /// Original parser diagnostics.
         diagnostics: Vec<Diagnostic>,
     },
-    /// The syntax tree contains a kind unknown to this formatter version.
-    #[error("unsupported syntax kind: {0}")]
-    UnsupportedSyntax(SyntaxKind),
+    /// The lossless tree contains an unsupported trivia token.
+    #[error("unsupported trivia kind: {0}")]
+    UnsupportedTrivia(SyntaxKind),
     /// Lossless CST tokens were not encountered in source order.
     #[error("token order violation: token at {next_start} follows end offset {previous_end}")]
     TokenOrder {

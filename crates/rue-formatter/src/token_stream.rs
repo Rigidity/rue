@@ -139,7 +139,7 @@ impl TokenStream {
                     }
                 }
                 kind if kind.is_trivia() => {
-                    return Err(FormatError::UnsupportedSyntax(kind));
+                    return Err(FormatError::UnsupportedTrivia(kind));
                 }
                 kind => {
                     gaps.last_mut()

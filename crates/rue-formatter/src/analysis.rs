@@ -1,4 +1,4 @@
-use rue_ast::{AstDocument, AstNode};
+use rue_ast::{AstDocument, AstNode, AstNodeKind};
 use rue_parser::{SyntaxKind, SyntaxNode, T};
 
 use crate::{
@@ -134,28 +134,31 @@ fn analyze_nodes(
     facts: &mut [TokenFacts],
 ) -> Result<(), FormatError> {
     for node in root.descendants() {
-        match node.kind() {
-            SyntaxKind::Block | SyntaxKind::ModuleItem | SyntaxKind::StructItem => {
+        let kind = ast_node_kind(&node)?;
+        // Intentionally exhaustive: adding a typed AST node requires an
+        // explicit formatter analysis policy before this crate can compile.
+        match kind {
+            AstNodeKind::Block | AstNodeKind::ModuleItem | AstNodeKind::StructItem => {
                 if let Some(id) = direct_or_descendant_token(&node, T!['{'], stream)? {
                     facts[id.index()].delimiter_style = Some(DelimiterStyle::Block);
-                    if node.kind() == SyntaxKind::StructItem {
+                    if kind == AstNodeKind::StructItem {
                         facts[id.index()].flags.insert(TokenFlags::TRAILING_COMMA);
                     }
                 }
             }
-            SyntaxKind::StructInitializerExpr | SyntaxKind::StructBinding => {
+            AstNodeKind::StructInitializerExpr | AstNodeKind::StructBinding => {
                 if let Some(id) = direct_or_descendant_token(&node, T!['{'], stream)? {
                     facts[id.index()].delimiter_style = Some(DelimiterStyle::Braced);
                     facts[id.index()].flags.insert(TokenFlags::TRAILING_COMMA);
                 }
             }
-            SyntaxKind::PairExpr
-            | SyntaxKind::PairType
-            | SyntaxKind::PairBinding
-            | SyntaxKind::ListExpr
-            | SyntaxKind::ListType
-            | SyntaxKind::ListBinding
-            | SyntaxKind::ImportPathSegment => {
+            AstNodeKind::PairExpr
+            | AstNodeKind::PairType
+            | AstNodeKind::PairBinding
+            | AstNodeKind::ListExpr
+            | AstNodeKind::ListType
+            | AstNodeKind::ListBinding
+            | AstNodeKind::ImportPathSegment => {
                 if let Some(token) = node
                     .children_with_tokens()
                     .filter_map(rowan::NodeOrToken::into_token)
@@ -165,7 +168,7 @@ fn analyze_nodes(
                     facts[id.index()].flags.insert(TokenFlags::TRAILING_COMMA);
                 }
             }
-            SyntaxKind::GenericParameters | SyntaxKind::GenericArguments => {
+            AstNodeKind::GenericParameters | AstNodeKind::GenericArguments => {
                 let direct_tokens: Vec<_> = node
                     .children_with_tokens()
                     .filter_map(rowan::NodeOrToken::into_token)
@@ -187,7 +190,7 @@ fn analyze_nodes(
                     facts[open.index()].pair = Some(close);
                 }
             }
-            SyntaxKind::PrefixExpr => {
+            AstNodeKind::PrefixExpr => {
                 if let Some(token) = significant_tokens(&node)
                     .find(|token| SyntaxKind::PREFIX_OPS.contains(&token.kind()))
                 {
@@ -195,10 +198,10 @@ fn analyze_nodes(
                     facts[id.index()].flags.insert(TokenFlags::PREFIX_OPERATOR);
                 }
             }
-            SyntaxKind::FunctionItem
-            | SyntaxKind::FunctionCallExpr
-            | SyntaxKind::LambdaExpr
-            | SyntaxKind::LambdaType => {
+            AstNodeKind::FunctionItem
+            | AstNodeKind::FunctionCallExpr
+            | AstNodeKind::LambdaExpr
+            | AstNodeKind::LambdaType => {
                 if let Some(token) = node
                     .children_with_tokens()
                     .filter_map(rowan::NodeOrToken::into_token)
@@ -209,7 +212,7 @@ fn analyze_nodes(
                     facts[id.index()].flags.insert(TokenFlags::TRAILING_COMMA);
                 }
             }
-            SyntaxKind::PathExpr | SyntaxKind::PathType | SyntaxKind::ImportPath => {
+            AstNodeKind::PathExpr | AstNodeKind::PathType | AstNodeKind::ImportPath => {
                 if let Some(token) = significant_tokens(&node).next()
                     && token.kind() == T![::]
                 {
@@ -219,7 +222,38 @@ fn analyze_nodes(
                         .insert(TokenFlags::ABSOLUTE_PATH_START);
                 }
             }
-            _ => {}
+            AstNodeKind::Document
+            | AstNodeKind::FunctionParameter
+            | AstNodeKind::ConstantItem
+            | AstNodeKind::TypeAliasItem
+            | AstNodeKind::StructField
+            | AstNodeKind::ImportItem
+            | AstNodeKind::LiteralType
+            | AstNodeKind::UnionType
+            | AstNodeKind::GroupType
+            | AstNodeKind::ListTypeItem
+            | AstNodeKind::LambdaParameter
+            | AstNodeKind::LetStmt
+            | AstNodeKind::ExprStmt
+            | AstNodeKind::IfStmt
+            | AstNodeKind::ReturnStmt
+            | AstNodeKind::AssertStmt
+            | AstNodeKind::RaiseStmt
+            | AstNodeKind::DebugStmt
+            | AstNodeKind::PathSegment
+            | AstNodeKind::StructInitializerField
+            | AstNodeKind::LiteralExpr
+            | AstNodeKind::ConstExpr
+            | AstNodeKind::GroupExpr
+            | AstNodeKind::ListItem
+            | AstNodeKind::BinaryExpr
+            | AstNodeKind::IfExpr
+            | AstNodeKind::GuardExpr
+            | AstNodeKind::CastExpr
+            | AstNodeKind::FieldAccessExpr
+            | AstNodeKind::NamedBinding
+            | AstNodeKind::ListBindingItem
+            | AstNodeKind::StructFieldBinding => {}
         }
     }
     Ok(())
@@ -321,6 +355,15 @@ fn direct_or_descendant_token(
 
 fn token_id(token: &rue_parser::SyntaxToken, stream: &TokenStream) -> Result<TokenId, FormatError> {
     stream.token_id_at_offset(usize::from(token.text_range().start()))
+}
+
+fn ast_node_kind(node: &SyntaxNode) -> Result<AstNodeKind, FormatError> {
+    AstNodeKind::of(node).ok_or_else(|| {
+        FormatError::Internal(format!(
+            "syntax node {:?} has no typed AST node kind",
+            node.kind()
+        ))
+    })
 }
 
 fn collect_binary_operator_offsets(node: &SyntaxNode, operators: &mut Vec<usize>) {

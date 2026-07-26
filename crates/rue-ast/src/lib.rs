@@ -10,7 +10,47 @@ pub trait AstNode {
 }
 
 macro_rules! ast_nodes {
-    ($( $kind:ident),+ $(,)?) => { paste! { $(
+    ($( $kind:ident),+ $(,)?) => { paste! {
+        /// The exhaustive set of syntax kinds with typed AST node wrappers.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum AstNodeKind {
+            $( $kind, )+
+        }
+
+        impl AstNodeKind {
+            pub const ALL: &'static [Self] = &[
+                $( Self::$kind, )+
+            ];
+
+            pub fn from_syntax(kind: SyntaxKind) -> Option<Self> {
+                match kind {
+                    $( SyntaxKind::$kind => Some(Self::$kind), )+
+                    _ => None,
+                }
+            }
+
+            pub fn of(node: &SyntaxNode) -> Option<Self> {
+                Self::from_syntax(node.kind())
+            }
+        }
+
+        impl TryFrom<SyntaxKind> for AstNodeKind {
+            type Error = SyntaxKind;
+
+            fn try_from(kind: SyntaxKind) -> Result<Self, Self::Error> {
+                Self::from_syntax(kind).ok_or(kind)
+            }
+        }
+
+        impl From<AstNodeKind> for SyntaxKind {
+            fn from(kind: AstNodeKind) -> Self {
+                match kind {
+                    $( AstNodeKind::$kind => Self::$kind, )+
+                }
+            }
+        }
+
+        $(
         #[derive(Debug, Clone)]
         pub struct [< Ast $kind >](SyntaxNode);
 
@@ -26,7 +66,8 @@ macro_rules! ast_nodes {
                 &self.0
             }
         }
-    )+ } };
+        )+
+    } };
 }
 
 macro_rules! ast_enum {
@@ -898,5 +939,44 @@ impl AstStructFieldBinding {
 
     pub fn binding(&self) -> Option<AstBinding> {
         self.syntax().children().find_map(AstBinding::cast)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use num_traits::FromPrimitive;
+
+    use super::*;
+
+    #[test]
+    fn every_parser_node_kind_has_an_ast_kind() {
+        let first = SyntaxKind::Document as u16;
+        let end = SyntaxKind::Error as u16;
+        assert_eq!(AstNodeKind::ALL.len(), usize::from(end - first));
+
+        for discriminant in first..end {
+            let syntax = SyntaxKind::from_u16(discriminant)
+                .expect("each contiguous parser node discriminant is valid");
+            let ast = AstNodeKind::try_from(syntax)
+                .unwrap_or_else(|kind| panic!("missing AST node kind for {kind:?}"));
+            assert_eq!(SyntaxKind::from(ast), syntax);
+        }
+    }
+
+    #[test]
+    fn tokens_trivia_and_sentinels_are_not_ast_node_kinds() {
+        for kind in [
+            SyntaxKind::Whitespace,
+            SyntaxKind::LineComment,
+            SyntaxKind::Ident,
+            SyntaxKind::Import,
+            SyntaxKind::OpenBrace,
+            SyntaxKind::Plus,
+            SyntaxKind::Error,
+            SyntaxKind::Eof,
+        ] {
+            assert_eq!(AstNodeKind::from_syntax(kind), None);
+            assert_eq!(AstNodeKind::try_from(kind), Err(kind));
+        }
     }
 }
