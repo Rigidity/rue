@@ -237,6 +237,61 @@ fn binary_operators_inside_if_are_not_chain_members() {
 }
 
 #[test]
+fn wrapped_condition_places_open_brace_on_own_line() {
+    let options = FormatOptions {
+        max_width: 30,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){if first_condition&&second_condition{return 1;}0}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            if first_condition
+                && second_condition
+            {
+                return 1;
+            }
+            0
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn wrapped_function_headers_place_open_brace_on_own_line() {
+    let options = FormatOptions {
+        max_width: 34,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn parameters(first: FirstType, second: SecondType){0}\nfn result()->FirstVariant|SecondVariant|ThirdVariant{0}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn parameters(
+            first: FirstType,
+            second: SecondType,
+        ) {
+            0
+        }
+
+        fn result() -> FirstVariant
+            | SecondVariant
+            | ThirdVariant
+        {
+            0
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
 fn comparison_wraps_rhs_inside_logical_chain() {
     let options = FormatOptions {
         max_width: 35,

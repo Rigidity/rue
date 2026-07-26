@@ -160,11 +160,33 @@ impl Formatter<'_> {
         let mut index = start;
 
         while index < end {
+            let mut emitted_separator = false;
             let atom_end = if let Some(&group_end) = self.layout.groups.get(&index)
                 && group_end < end
                 && !(index == start && group_end + 1 == end)
             {
-                docs.push(self.grouped_span(index, group_end + 1)?);
+                let next = group_end + 1;
+                let gap = &self.stream.gaps[next];
+                if self.layout.binary_operators.contains_key(&index)
+                    && self
+                        .stream
+                        .tokens
+                        .get(next)
+                        .is_some_and(|token| self.layout.block_openers.contains(&token.start))
+                    && gap.comments.is_empty()
+                    && gap.newlines <= 1
+                {
+                    docs.push(
+                        Doc::concat([
+                            self.binary_span(index, next)?,
+                            Doc::if_break(Doc::hard_line(), Doc::space()),
+                        ])
+                        .group(),
+                    );
+                    emitted_separator = true;
+                } else {
+                    docs.push(self.grouped_span(index, next)?);
+                }
                 group_end
             } else if let Some(&close) = self.layout.pairs.get(&index) {
                 if close >= end {
@@ -180,7 +202,7 @@ impl Formatter<'_> {
             };
 
             index = atom_end + 1;
-            if index < end {
+            if index < end && !emitted_separator {
                 let separator = self.separator(atom_end, index);
                 docs.push(self.gap_doc(&self.stream.gaps[index], separator));
             }
