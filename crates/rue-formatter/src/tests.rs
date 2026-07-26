@@ -290,6 +290,26 @@ fn generic_trailing_commas_follow_layout() {
 }
 
 #[test]
+fn union_type_operators_lead_continuation_lines() {
+    let options = FormatOptions {
+        max_width: 32,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "type Condition = FirstVariant | SecondVariant | ThirdVariant;",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        type Condition = FirstVariant
+            | SecondVariant
+            | ThirdVariant;
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
 fn imports_are_hoisted_grouped_and_sorted() {
     check(
         "const VALUE:Int=1; import zebra; import beta::{zeta,alpha};\n\nimport delta; import charlie; fn main(){}",
@@ -332,6 +352,21 @@ fn compact_items_are_grouped() {
             type B = Int;
 
             fn main() {}
+        "#]],
+    );
+}
+
+#[test]
+fn block_items_separate_implicit_return_expression() {
+    check(
+        "fn recurse(items: List<Int>) -> Int { if items is nil { return 0; } recurse(items.rest) }",
+        expect![[r#"
+            fn recurse(items: List<Int>) -> Int {
+                if items is nil {
+                    return 0;
+                }
+                recurse(items.rest)
+            }
         "#]],
     );
 }

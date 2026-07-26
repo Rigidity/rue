@@ -35,6 +35,7 @@ struct Layout {
     prefix_operators: HashSet<usize>,
     attached_openers: HashSet<usize>,
     item_ends: HashSet<usize>,
+    block_item_ends: HashSet<usize>,
     groups: HashMap<usize, usize>,
     binary_operators: HashMap<usize, Vec<usize>>,
     document_items: Vec<DocumentItem>,
@@ -416,6 +417,9 @@ impl Formatter<'_> {
         if self.layout.item_ends.contains(&left.start) {
             return Separator::Empty;
         }
+        if self.layout.block_item_ends.contains(&left.start) {
+            return Separator::Hard;
+        }
 
         if left.kind == T![;] {
             return Separator::Hard;
@@ -646,6 +650,17 @@ impl Layout {
                 item_ends.insert(item_end);
             }
         }
+        let mut block_item_ends = HashSet::new();
+        for block in root
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::Block)
+        {
+            for item in block.children() {
+                if let Some(token) = significant_tokens(&item).last() {
+                    block_item_ends.insert(usize::from(token.text_range().start()));
+                }
+            }
+        }
 
         let token_indices: HashMap<usize, usize> = stream
             .tokens
@@ -727,9 +742,13 @@ impl Layout {
                 .entry(start)
                 .and_modify(|current: &mut usize| *current = (*current).max(end))
                 .or_insert(end);
+            let mut operators = Vec::new();
             if node.kind() == SyntaxKind::BinaryExpr {
-                let mut operators = Vec::new();
                 collect_binary_operator_starts(&node, &mut operators);
+            } else {
+                collect_union_operator_starts(&node, &mut operators);
+            }
+            if !operators.is_empty() {
                 binary_operators.insert(
                     start,
                     operators
@@ -816,6 +835,7 @@ impl Layout {
             prefix_operators,
             attached_openers,
             item_ends,
+            block_item_ends,
             groups,
             binary_operators,
             document_items,
@@ -831,6 +851,20 @@ fn collect_binary_operator_starts(node: &SyntaxNode, operators: &mut Vec<usize>)
                 collect_binary_operator_starts(&child, operators);
             }
             rowan::NodeOrToken::Token(token) if SyntaxKind::BINARY_OPS.contains(&token.kind()) => {
+                operators.push(usize::from(token.text_range().start()));
+            }
+            _ => {}
+        }
+    }
+}
+
+fn collect_union_operator_starts(node: &SyntaxNode, operators: &mut Vec<usize>) {
+    for element in node.children_with_tokens() {
+        match element {
+            rowan::NodeOrToken::Node(child) if child.kind() == SyntaxKind::UnionType => {
+                collect_union_operator_starts(&child, operators);
+            }
+            rowan::NodeOrToken::Token(token) if token.kind() == T![|] => {
                 operators.push(usize::from(token.text_range().start()));
             }
             _ => {}
