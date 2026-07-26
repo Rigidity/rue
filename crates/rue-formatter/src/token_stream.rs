@@ -83,7 +83,10 @@ impl TokenStream {
                         });
                     comment_count += 1;
                     pending_newlines = 0;
-                    if kind == SyntaxKind::LineComment || multiline {
+                    if kind == SyntaxKind::LineComment {
+                        pending_newlines = newline_count(raw.text());
+                        line_has_significant = false;
+                    } else if multiline {
                         line_has_significant = false;
                     }
                 }

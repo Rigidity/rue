@@ -34,7 +34,9 @@ struct Layout {
     generic_tokens: HashSet<usize>,
     prefix_operators: HashSet<usize>,
     attached_openers: HashSet<usize>,
+    absolute_path_starts: HashSet<usize>,
     item_ends: HashSet<usize>,
+    module_item_ends: HashSet<usize>,
     block_item_ends: HashSet<usize>,
     groups: HashMap<usize, usize>,
     binary_operators: HashMap<usize, Vec<usize>>,
@@ -72,35 +74,45 @@ pub(crate) fn format_document(
         consumed_comments: 0,
     };
 
-    let mut docs = vec![formatter.gap_doc(&stream.gaps[0], Separator::None)];
     let items = formatter.layout.document_items.clone();
+    let (file_gap, first_item_gap) = if items.is_empty() {
+        (stream.gaps[0].clone(), Gap::default())
+    } else {
+        split_first_item_gap(&stream.gaps[0])
+    };
+    let mut docs = vec![formatter.gap_doc(&file_gap, Separator::None)];
     for (position, item) in items.iter().enumerate() {
-        if position > 0 || item.start != 0 {
-            let separator = if position == 0 {
-                Separator::None
-            } else {
-                let previous = &items[position - 1];
-                match (previous.import_group, item.import_group) {
-                    (Some(left), Some(right)) if left == right => Separator::Hard,
-                    (None, None)
-                        if previous.compact_group.is_some()
-                            && previous.compact_group == item.compact_group
-                            && (item.start == 0
-                                || stream.gaps[item.start].newlines <= 1) =>
-                    {
-                        Separator::Hard
-                    }
-                    _ => Separator::Empty,
+        let separator = if position == 0 {
+            Separator::None
+        } else {
+            let previous = &items[position - 1];
+            match (previous.import_group, item.import_group) {
+                (Some(left), Some(right)) if left == right => Separator::Hard,
+                (None, None)
+                    if previous.compact_group.is_some()
+                        && previous.compact_group == item.compact_group
+                        && (item.start == 0 || stream.gaps[item.start].newlines <= 1) =>
+                {
+                    Separator::Hard
                 }
-            };
-            if item.start == 0 {
-                docs.push(separator_doc(separator));
-            } else {
-                let mut gap = stream.gaps[item.start].clone();
-                gap.newlines = 0;
-                docs.push(formatter.gap_doc(&gap, separator));
+                _ => Separator::Empty,
             }
+        };
+        let mut gap = if item.start == 0 {
+            first_item_gap.clone()
+        } else {
+            stream.gaps[item.start].clone()
+        };
+        if position == 0
+            && let Some(first) = gap.comments.first_mut()
+        {
+            first.newlines_before = 0;
+            first.trailing = false;
         }
+        if gap.comments.is_empty() {
+            gap.newlines = 0;
+        }
+        docs.push(formatter.gap_doc(&gap, separator));
         docs.push(formatter.span(item.start, item.end)?);
     }
     if !stream.tokens.is_empty() {
@@ -125,6 +137,31 @@ pub(crate) fn format_document(
     }
 
     Ok(Doc::concat(docs))
+}
+
+fn split_first_item_gap(gap: &Gap) -> (Gap, Gap) {
+    if gap.comments.is_empty() || gap.newlines > 1 {
+        return (gap.clone(), Gap::default());
+    }
+
+    let mut attached_start = gap.comments.len() - 1;
+    while attached_start > 0 && gap.comments[attached_start].newlines_before <= 1 {
+        attached_start -= 1;
+    }
+
+    let mut file_gap = Gap {
+        comments: gap.comments[..attached_start].to_vec(),
+        newlines: 0,
+    };
+    let mut item_gap = Gap {
+        comments: gap.comments[attached_start..].to_vec(),
+        newlines: gap.newlines,
+    };
+    if let Some(first) = item_gap.comments.first_mut() {
+        file_gap.newlines = first.newlines_before;
+        first.newlines_before = 0;
+    }
+    (file_gap, item_gap)
 }
 
 #[derive(Debug)]
@@ -439,6 +476,9 @@ impl Formatter<'_> {
         if self.layout.item_ends.contains(&left.start) {
             return Separator::Empty;
         }
+        if self.layout.module_item_ends.contains(&left.start) {
+            return Separator::Hard;
+        }
         if self.layout.block_item_ends.contains(&left.start) {
             return Separator::Hard;
         }
@@ -448,6 +488,12 @@ impl Formatter<'_> {
         }
         if left.kind == T![,] {
             return Separator::Soft;
+        }
+        if right.kind == T![::]
+            && self.layout.absolute_path_starts.contains(&right.start)
+            && !no_space_after(left.kind)
+        {
+            return Separator::Space;
         }
         if no_space_after(left.kind) || no_space_before(right.kind) {
             return Separator::None;
@@ -672,6 +718,29 @@ impl Layout {
                 item_ends.insert(item_end);
             }
         }
+        let mut module_item_ends = HashSet::new();
+        for module in root
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::ModuleItem)
+        {
+            for item in module.children() {
+                if let Some(token) = significant_tokens(&item).last() {
+                    module_item_ends.insert(usize::from(token.text_range().start()));
+                }
+            }
+        }
+        let absolute_path_starts = root
+            .descendants()
+            .filter(|node| {
+                matches!(
+                    node.kind(),
+                    SyntaxKind::PathExpr | SyntaxKind::PathType | SyntaxKind::ImportPath
+                )
+            })
+            .filter_map(|node| significant_tokens(&node).next())
+            .filter(|token| token.kind() == T![::])
+            .map(|token| usize::from(token.text_range().start()))
+            .collect();
         let mut block_item_ends = HashSet::new();
         for block in root
             .descendants()
@@ -806,7 +875,7 @@ impl Layout {
 
             let is_import = matches!(&item, AstItem::ImportItem(_));
             let import_group = is_import.then(|| {
-                if !previous_was_import || (start > 0 && stream.gaps[start].newlines > 1) {
+                if !previous_was_import || (start > 0 && gap_has_blank_line(&stream.gaps[start])) {
                     next_import_group += 1;
                 }
                 next_import_group
@@ -856,7 +925,9 @@ impl Layout {
             generic_tokens,
             prefix_operators,
             attached_openers,
+            absolute_path_starts,
             item_ends,
+            module_item_ends,
             block_item_ends,
             groups,
             binary_operators,
@@ -864,6 +935,14 @@ impl Layout {
             import_groups,
         })
     }
+}
+
+fn gap_has_blank_line(gap: &Gap) -> bool {
+    gap.newlines > 1
+        || gap
+            .comments
+            .iter()
+            .any(|comment| comment.newlines_before > 1)
 }
 
 fn collect_binary_operator_starts(node: &SyntaxNode, operators: &mut Vec<usize>) {

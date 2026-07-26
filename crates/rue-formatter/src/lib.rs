@@ -247,7 +247,7 @@ fn is_optional_trailing_comma(token: &rue_parser::SyntaxToken) -> bool {
 }
 
 fn comment_signature(stream: &TokenStream) -> Vec<(SyntaxKind, &str)> {
-    stream
+    let mut signature: Vec<_> = stream
         .gaps
         .iter()
         .flat_map(|gap| {
@@ -255,7 +255,9 @@ fn comment_signature(stream: &TokenStream) -> Vec<(SyntaxKind, &str)> {
                 .iter()
                 .map(|comment| (comment.kind, comment.text.as_str()))
         })
-        .collect()
+        .collect();
+    signature.sort_unstable();
+    signature
 }
 
 #[cfg(test)]
