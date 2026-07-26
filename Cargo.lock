@@ -1769,6 +1769,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rue-formatter"
+version = "0.9.0"
+dependencies = [
+ "expect-test",
+ "rowan",
+ "rue-ast",
+ "rue-diagnostic",
+ "rue-lexer",
+ "rue-parser",
+ "thiserror 2.0.14",
+]
+
+[[package]]
 name = "rue-hir"
 version = "0.9.0"
 dependencies = [
@@ -1860,6 +1873,7 @@ dependencies = [
  "indexmap",
  "rue-compiler",
  "rue-diagnostic",
+ "rue-formatter",
  "rue-lir",
  "rue-options",
  "serde",

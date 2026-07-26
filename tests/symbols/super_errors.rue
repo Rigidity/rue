@@ -3,5 +3,7 @@ mod a {
 }
 
 import super::x;
+
 import super;
+
 import super::super;

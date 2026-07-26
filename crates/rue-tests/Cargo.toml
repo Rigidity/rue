@@ -20,6 +20,7 @@ rue-compiler = { workspace = true }
 rue-options = { workspace = true }
 rue-diagnostic = { workspace = true }
 rue-lir = { workspace = true }
+rue-formatter = { workspace = true }
 clvmr = { workspace = true }
 chialisp = { workspace = true }
 anyhow = { workspace = true }

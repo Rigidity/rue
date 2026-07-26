@@ -1,3 +1,5 @@
 test fn unresolved() -> Int {
-    const { missing }
+    const {
+        missing
+    }
 }

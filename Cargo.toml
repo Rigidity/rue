@@ -46,6 +46,7 @@ rue-lexer = { path = "crates/rue-lexer", version = "0.9.0" }
 rue-parser = { path = "crates/rue-parser", version = "0.9.0" }
 rue-diagnostic = { path = "crates/rue-diagnostic", version = "0.9.0" }
 rue-ast = { path = "crates/rue-ast", version = "0.9.0" }
+rue-formatter = { path = "crates/rue-formatter", version = "0.9.0" }
 rue-compiler = { path = "crates/rue-compiler", version = "0.9.0" }
 rue-options = { path = "crates/rue-options", version = "0.9.0" }
 rue-lir = { path = "crates/rue-lir", version = "0.9.0" }

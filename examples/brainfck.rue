@@ -30,44 +30,23 @@ fn step(program: Program) -> Program {
     let source = substr(source, 1);
 
     if char == "+" {
-        Program {
-            state: increment(state),
-            source,
-        }
+        Program { state: increment(state), source, }
     } else if char == "-" {
-        Program {
-            state: decrement(state),
-            source,
-        }
+        Program { state: decrement(state), source, }
     } else if char == "<" {
-        Program {
-            state: move_left(state),
-            source,
-        }
+        Program { state: move_left(state), source, }
     } else if char == ">" {
-        Program {
-            state: move_right(state),
-            source,
-        }
+        Program { state: move_right(state), source, }
     } else if char == "," {
-        Program {
-            state: input(state),
-            source,
-        }
+        Program { state: input(state), source, }
     } else if char == "." {
-        Program {
-            state: output(state),
-            source,
-        }
+        Program { state: output(state), source, }
     } else if char == "[" {
         let length = block_length(source, 1);
         let block = substr(source, 0, length);
         let source = substr(source, length);
 
-        Program {
-            state: loop(state, block),
-            source,
-        }
+        Program { state: loop(state, block), source, }
     } else {
         Program { state, source }
     }
@@ -89,17 +68,18 @@ fn block_length(source: String, depth: Int) -> Int {
     let char = substr(source, 0, 1);
     let rest = substr(source, 1);
 
-    1 + if char == "[" {
-        block_length(rest, depth + 1)
-    } else if char == "]" {
-        if depth == 1 {
-            0
+    1
+        + if char == "[" {
+            block_length(rest, depth + 1)
+        } else if char == "]" {
+            if depth == 1 {
+                0
+            } else {
+                block_length(rest, depth - 1)
+            }
         } else {
-            block_length(rest, depth - 1)
+            block_length(rest, depth)
         }
-    } else {
-        block_length(rest, depth)
-    }
 }
 
 inline fn update(state: State, tape: Tape) -> State {
@@ -111,38 +91,25 @@ inline fn update(state: State, tape: Tape) -> State {
 inline fn increment(state: State) -> State {
     inline let { tape } = state;
 
-    update(state, Tape {
-        value: tape.value + 1,
-        left: tape.left,
-        right: tape.right,
-    })
+    update(state, Tape { value: tape.value + 1, left: tape.left, right: tape.right, })
 }
 
 inline fn decrement(state: State) -> State {
     inline let { tape } = state;
 
-    update(state, Tape {
-        value: tape.value - 1,
-        left: tape.left,
-        right: tape.right,
-    })
+    update(state, Tape { value: tape.value - 1, left: tape.left, right: tape.right, })
 }
 
 inline fn move_left(state: State) -> State {
     inline let { tape } = state;
 
     if tape.left is nil {
-        update(state, Tape {
-            value: 0,
-            left: nil,
-            right: (tape.value, tape.right),
-        })
+        update(state, Tape { value: 0, left: nil, right: (tape.value, tape.right), })
     } else {
-        update(state, Tape {
-            value: tape.left.first,
-            left: tape.left.rest,
-            right: (tape.value, tape.right),
-        })
+        update(
+            state,
+            Tape { value: tape.left.first, left: tape.left.rest, right: (tape.value, tape.right), }
+        )
     }
 }
 
@@ -150,39 +117,26 @@ inline fn move_right(state: State) -> State {
     inline let { tape } = state;
 
     if tape.right is nil {
-        update(state, Tape {
-            value: 0,
-            left: (tape.value, tape.left),
-            right: nil,
-        })
+        update(state, Tape { value: 0, left: (tape.value, tape.left), right: nil, })
     } else {
-        update(state, Tape {
-            value: tape.right.first,
-            left: (tape.value, tape.left),
-            right: tape.right.rest,
-        })
+        update(
+            state,
+            Tape { value: tape.right.first, left: (tape.value, tape.left), right: tape.right.rest, }
+        )
     }
 }
 
 inline fn output(state: State) -> State {
     inline let { tape, input, output } = state;
 
-    State {
-        tape,
-        input,
-        output: output + tape.value as String,
-    }
+    State { tape, input, output: output + tape.value as String, }
 }
 
 inline fn input(state: State) -> State {
     inline let { tape, input, output } = state;
 
     State {
-        tape: Tape {
-            value: substr(input, 0, 1) as Int,
-            left: tape.left,
-            right: tape.right,
-        },
+        tape: Tape { value: substr(input, 0, 1) as Int, left: tape.left, right: tape.right, },
         input: substr(input, 1),
         output,
     }
@@ -190,15 +144,7 @@ inline fn input(state: State) -> State {
 
 inline fn run(source: String, input: String) -> String {
     let program = Program {
-        state: State {
-            tape: Tape {
-                value: 0,
-                left: nil,
-                right: nil,
-            },
-            input,
-            output: "",
-        },
+        state: State { tape: Tape { value: 0, left: nil, right: nil, }, input, output: "", },
         source,
     };
 

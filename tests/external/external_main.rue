@@ -1,2 +1,1 @@
-extern fn main(a: Int, b: Int) -> Int
-    from "./add.hex";
+extern fn main(a: Int, b: Int) -> Int from "./add.hex";

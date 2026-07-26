@@ -5,14 +5,14 @@ runtime_cost: 20
 byte_cost: 36000
 total_cost: 36020
 diagnostics:
-- Unused import `d` at unused_imports.rue:38:18
-- Unused import `*` at unused_imports.rue:36:18
-- Unused import `*` at unused_imports.rue:39:17
-- Unused import `*` at unused_imports.rue:40:15
+- Unused import `d` at unused_imports.rue:43:18
+- Unused import `*` at unused_imports.rue:39:18
+- Unused import `*` at unused_imports.rue:45:17
+- Unused import `*` at unused_imports.rue:47:15
 - Unused import `a` at unused_imports.rue:33:16
-- Unused import `*` at unused_imports.rue:34:14
-- Unused import `c` at unused_imports.rue:35:18
-- Unused import `*` at unused_imports.rue:37:18
+- Unused import `*` at unused_imports.rue:35:14
+- Unused import `c` at unused_imports.rue:37:18
+- Unused import `*` at unused_imports.rue:41:18
 - Unused function `a` at unused_imports.rue:2:15
 - Unused function `b` at unused_imports.rue:8:15
 - Unused function `c` at unused_imports.rue:14:15

@@ -31,12 +31,19 @@ mod private {
 mod empty {}
 
 import single::a;
+
 import glob::*;
+
 import shadow_1::c;
+
 import shadow_1::*;
+
 import shadow_2::*;
+
 import shadow_2::d;
+
 import private::*;
+
 import empty::*;
 
 mod deeply {
@@ -50,7 +57,9 @@ mod deeply {
 }
 
 import deeply::nested;
+
 import nested::module;
+
 import module::used;
 
 fn main() -> Int {

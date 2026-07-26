@@ -65,6 +65,7 @@ fn create_adder(a: Int) -> fn(b: Int) -> Int {
 }
 
 const CAPTURE_1: Int = 42;
+
 const CAPTURE_2: Int = 34;
 
 fn tree_params(a: Int, b: Int, c: Int, d: Int) -> Int {

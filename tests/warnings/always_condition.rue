@@ -1,7 +1,7 @@
 fn main() -> Int {
     assert true;
     assert !false;
-    
+
     if false {
         0
     } else {

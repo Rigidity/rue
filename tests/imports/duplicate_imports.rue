@@ -2,7 +2,7 @@ mod a {
     export fn thing() -> Int {
         42
     }
-    
+
     export thing;
     export thing;
 }

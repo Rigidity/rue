@@ -33,4 +33,3 @@ test fn double_param() -> Int {
 test fn explicit_inline_double_param() -> Int {
     double_param_ref_inline(42)
 }
-

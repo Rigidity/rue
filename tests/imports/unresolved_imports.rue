@@ -1,5 +1,7 @@
 mod module {}
 
 import module::missing;
+
 import module::inner::missing;
+
 import module::inner::*;

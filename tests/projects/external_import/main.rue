@@ -1,10 +1,8 @@
 import nested::helper::add_nested;
 
-extern fn add(a: Int, b: Int) -> Int
-    from "./add.hex";
+extern fn add(a: Int, b: Int) -> Int from "./add.hex";
 
-extern fn add_again(a: Int, b: Int) -> Int
-    from "./add.hex";
+extern fn add_again(a: Int, b: Int) -> Int from "./add.hex";
 
 test fn call_external() -> Int {
     add(20, 22)

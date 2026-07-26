@@ -1,9 +1,15 @@
 export utils::*;
+
 export tree_hash::*;
+
 export curry_tree_hash::*;
+
 export conditions::message_flags::*;
+
 export conditions::opcodes::*;
+
 export conditions::types::*;
+
 export merkle::*;
 
 export mod std {

@@ -1,5 +1,4 @@
 // This puzzle has not been audited or tested, and is for example purposes only.
-
 // Information about the CAT, used for currying purposes.
 struct CatInfo {
     mod_hash: Bytes32,
@@ -100,16 +99,12 @@ fn main(
     extra_delta: Int,
 ) -> List<Condition> {
     // For simplicity, we'll pack these values into a struct.
-    let cat_info = CatInfo {
-        mod_hash,
-        mod_hash_hash: tree_hash_atom(mod_hash),
-        asset_id,
-    };
+    let cat_info = CatInfo { mod_hash, mod_hash_hash: tree_hash_atom(mod_hash), asset_id, };
 
     // Calculate the inner puzzle hash and conditions.
     let morph = morph_conditions(inner_puzzle(...inner_solution), cat_info, nil);
     let inner_puzzle_hash = tree_hash(inner_puzzle);
-    
+
     // Calculate coin ids.
     let my_coin_id = coinid(my_coin.parent_coin_info, my_coin.puzzle_hash, my_coin.amount);
     let next_coin_id = coinid(
@@ -125,11 +120,12 @@ fn main(
     };
 
     // Check whether the parent is a CAT or not.
-    let parent_is_cat = lineage_proof is LineageProof && my_coin.parent_coin_info == coinid(
-        lineage_proof.parent_parent_coin_info,
-        cat_puzzle_hash(cat_info, lineage_proof.parent_inner_puzzle_hash),
-        lineage_proof.parent_amount,
-    );
+    let parent_is_cat = lineage_proof is LineageProof
+        && my_coin.parent_coin_info == coinid(
+            lineage_proof.parent_parent_coin_info,
+            cat_puzzle_hash(cat_info, lineage_proof.parent_inner_puzzle_hash),
+            lineage_proof.parent_amount,
+        );
 
     // Calculate the new subtotal.
     let remainder = my_coin.amount - morph.sum;
@@ -202,26 +198,19 @@ fn morph_conditions(
 ) -> Morph {
     // If there are no conditions, return an empty morph.
     if conditions is nil {
-        return Morph {
-            conditions: nil,
-            sum: 0,
-            tail_info: tail_info,
-        };
+        return Morph { conditions: nil, sum: 0, tail_info: tail_info, };
     }
 
     inline let condition = conditions.first;
 
     if condition is RunTail {
-        let rest = morph_conditions(conditions.rest, cat_info, TailInfo {
-            tail_puzzle: condition.tail_puzzle,
-            tail_solution: condition.tail_solution,
-        });
+        let rest = morph_conditions(
+            conditions.rest,
+            cat_info,
+            TailInfo { tail_puzzle: condition.tail_puzzle, tail_solution: condition.tail_solution, }
+        );
 
-        return Morph {
-            conditions: rest.conditions,
-            sum: rest.sum,
-            tail_info: rest.tail_info,
-        };
+        return Morph { conditions: rest.conditions, sum: rest.sum, tail_info: rest.tail_info, };
     }
 
     let morphed = if condition is CreateCoin {
@@ -237,8 +226,10 @@ fn morph_conditions(
         // If the condition is a coin announcement,
         // make sure it's not pretending to be part of the ring.
         if condition is CreateCoinAnnouncement
-            && ((condition.message.length == 33) & (substr(condition.message, 0, 1) == RING_MORPH_BYTE))
-        {
+            && (
+                (condition.message.length == 33)
+                    & (substr(condition.message, 0, 1) == RING_MORPH_BYTE)
+            ) {
             raise "Created coin announcements must not have the ring morph byte";
         }
 
