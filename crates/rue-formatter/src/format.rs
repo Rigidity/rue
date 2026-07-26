@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use rue_ast::{AstDocument, AstNode};
+use rue_ast::{AstDocument, AstItem, AstNode};
 use rue_parser::{SyntaxKind, SyntaxNode, T};
 
 use crate::{
@@ -30,12 +30,32 @@ struct Layout {
     pairs: HashMap<usize, usize>,
     block_openers: HashSet<usize>,
     braced_openers: HashSet<usize>,
+    trailing_comma_openers: HashSet<usize>,
     generic_tokens: HashSet<usize>,
     prefix_operators: HashSet<usize>,
     attached_openers: HashSet<usize>,
     item_ends: HashSet<usize>,
     groups: HashMap<usize, usize>,
     binary_operators: HashMap<usize, Vec<usize>>,
+    document_items: Vec<DocumentItem>,
+    import_groups: HashMap<usize, Vec<ImportGroupItem>>,
+}
+
+#[derive(Debug, Clone)]
+struct DocumentItem {
+    start: usize,
+    end: usize,
+    import_group: Option<usize>,
+    compact_group: Option<SyntaxKind>,
+    sort_key: String,
+    original_index: usize,
+}
+
+#[derive(Debug, Clone)]
+struct ImportGroupItem {
+    start: usize,
+    end: usize,
+    sort_key: String,
 }
 
 pub(crate) fn format_document(
@@ -52,7 +72,36 @@ pub(crate) fn format_document(
     };
 
     let mut docs = vec![formatter.gap_doc(&stream.gaps[0], Separator::None)];
-    docs.push(formatter.span(0, stream.tokens.len())?);
+    let items = formatter.layout.document_items.clone();
+    for (position, item) in items.iter().enumerate() {
+        if position > 0 || item.start != 0 {
+            let separator = if position == 0 {
+                Separator::None
+            } else {
+                let previous = &items[position - 1];
+                match (previous.import_group, item.import_group) {
+                    (Some(left), Some(right)) if left == right => Separator::Hard,
+                    (None, None)
+                        if previous.compact_group.is_some()
+                            && previous.compact_group == item.compact_group
+                            && (item.start == 0
+                                || stream.gaps[item.start].newlines <= 1) =>
+                    {
+                        Separator::Hard
+                    }
+                    _ => Separator::Empty,
+                }
+            };
+            if item.start == 0 {
+                docs.push(separator_doc(separator));
+            } else {
+                let mut gap = stream.gaps[item.start].clone();
+                gap.newlines = 0;
+                docs.push(formatter.gap_doc(&gap, separator));
+            }
+        }
+        docs.push(formatter.span(item.start, item.end)?);
+    }
     if !stream.tokens.is_empty() {
         docs.push(formatter.gap_doc(
             stream.gaps.last().expect("a trailing gap always exists"),
@@ -202,6 +251,10 @@ impl Formatter<'_> {
         let open_doc = self.token(open);
         let close_doc = self.token(close);
         let inner_start = open + 1;
+        let supports_trailing_comma = self
+            .layout
+            .trailing_comma_openers
+            .contains(&self.stream.tokens[open].start);
 
         if inner_start == close {
             let gap = self.gap_doc_with_comments(
@@ -218,7 +271,24 @@ impl Formatter<'_> {
             return Ok(Doc::concat([open_doc, gap, close_doc]).group());
         }
 
-        let inner = self.span(inner_start, close)?;
+        if let Some(items) = self.layout.import_groups.get(&open).cloned() {
+            return self.import_group(open_doc, close_doc, close, &items);
+        }
+
+        let source_trailing_comma =
+            supports_trailing_comma && self.stream.tokens[close - 1].kind == T![,];
+        let inner_end = close - usize::from(source_trailing_comma);
+        let inner = self.span(inner_start, inner_end)?;
+        let comma = if source_trailing_comma {
+            let leading = self.gap_doc(&self.stream.gaps[inner_end], Separator::None);
+            self.consumed_tokens += 1;
+            Doc::concat([leading, Doc::if_break(Doc::text(","), Doc::Nil)])
+        } else if supports_trailing_comma {
+            Doc::if_break(Doc::text(","), Doc::Nil)
+        } else {
+            Doc::Nil
+        };
+        let inner = Doc::concat([inner, comma]);
         let leading_gap = &self.stream.gaps[inner_start];
         let trailing_gap = &self.stream.gaps[close];
         let leading_comment_starts_line = leading_gap
@@ -284,6 +354,54 @@ impl Formatter<'_> {
             ])
             .group(),
         })
+    }
+
+    fn import_group(
+        &mut self,
+        open: Doc,
+        close: Doc,
+        close_index: usize,
+        items: &[ImportGroupItem],
+    ) -> Result<Doc, FormatError> {
+        let mut docs = Vec::new();
+        for (position, item) in items.iter().enumerate() {
+            let requested = if position == 0 {
+                Separator::None
+            } else {
+                Separator::Soft
+            };
+            let mut gap = self.stream.gaps[item.start].clone();
+            gap.newlines = 0;
+            docs.push(self.gap_doc(&gap, requested));
+            docs.push(self.span(item.start, item.end)?);
+
+            if self
+                .stream
+                .tokens
+                .get(item.end)
+                .is_some_and(|token| token.kind == T![,])
+            {
+                let comma_gap = self.gap_doc(&self.stream.gaps[item.end], Separator::None);
+                docs.push(comma_gap);
+                self.consumed_tokens += 1;
+            }
+
+            if position + 1 < items.len() {
+                docs.push(Doc::text(","));
+            } else {
+                docs.push(Doc::if_break(Doc::text(","), Doc::Nil));
+            }
+        }
+
+        let trailing = self.gap_doc(&self.stream.gaps[close_index], Separator::None);
+        Ok(Doc::concat([
+            open,
+            Doc::concat([Doc::if_break(Doc::hard_line(), Doc::Nil), Doc::concat(docs)]).indent(),
+            trailing,
+            Doc::if_break(Doc::hard_line(), Doc::Nil),
+            close,
+        ])
+        .group())
     }
 
     fn token(&mut self, index: usize) -> Doc {
@@ -415,7 +533,9 @@ impl Layout {
         let root = document.syntax();
         let mut block_openers = HashSet::new();
         let mut braced_openers = HashSet::new();
+        let mut trailing_comma_openers = HashSet::new();
         let mut generic_tokens = HashSet::new();
+        let mut generic_pairs = Vec::new();
         let mut prefix_operators = HashSet::new();
         let mut attached_openers = HashSet::new();
 
@@ -425,14 +545,35 @@ impl Layout {
                     if let Some(token) =
                         significant_tokens(&node).find(|token| token.kind() == T!['{'])
                     {
-                        block_openers.insert(usize::from(token.text_range().start()));
+                        let start = usize::from(token.text_range().start());
+                        block_openers.insert(start);
+                        if node.kind() == SyntaxKind::StructItem {
+                            trailing_comma_openers.insert(start);
+                        }
                     }
                 }
                 SyntaxKind::StructInitializerExpr | SyntaxKind::StructBinding => {
                     if let Some(token) =
                         significant_tokens(&node).find(|token| token.kind() == T!['{'])
                     {
-                        braced_openers.insert(usize::from(token.text_range().start()));
+                        let start = usize::from(token.text_range().start());
+                        braced_openers.insert(start);
+                        trailing_comma_openers.insert(start);
+                    }
+                }
+                SyntaxKind::PairExpr
+                | SyntaxKind::PairType
+                | SyntaxKind::PairBinding
+                | SyntaxKind::ListExpr
+                | SyntaxKind::ListType
+                | SyntaxKind::ListBinding
+                | SyntaxKind::ImportPathSegment => {
+                    if let Some(token) = node
+                        .children_with_tokens()
+                        .filter_map(rowan::NodeOrToken::into_token)
+                        .find(|token| matches!(token.kind(), T!['('] | T!['['] | T!['{']))
+                    {
+                        trailing_comma_openers.insert(usize::from(token.text_range().start()));
                     }
                 }
                 SyntaxKind::GenericParameters | SyntaxKind::GenericArguments => {
@@ -441,6 +582,20 @@ impl Layout {
                             .filter(|token| is_generic_punctuation(token.kind()))
                             .map(|token| usize::from(token.text_range().start())),
                     );
+                    let direct_tokens: Vec<_> = node
+                        .children_with_tokens()
+                        .filter_map(rowan::NodeOrToken::into_token)
+                        .filter(|token| !token.kind().is_trivia())
+                        .collect();
+                    if let (Some(open), Some(close)) = (direct_tokens.first(), direct_tokens.last())
+                        && open.kind() == T![<]
+                        && close.kind() == T![>]
+                    {
+                        let open = usize::from(open.text_range().start());
+                        let close = usize::from(close.text_range().start());
+                        trailing_comma_openers.insert(open);
+                        generic_pairs.push((open, close));
+                    }
                 }
                 SyntaxKind::PrefixExpr => {
                     if let Some(token) = significant_tokens(&node)
@@ -458,11 +613,23 @@ impl Layout {
                         .filter_map(rowan::NodeOrToken::into_token)
                         .find(|token| token.kind() == T!['('])
                     {
-                        attached_openers.insert(usize::from(token.text_range().start()));
+                        let start = usize::from(token.text_range().start());
+                        attached_openers.insert(start);
+                        trailing_comma_openers.insert(start);
                     }
                 }
                 _ => {}
             }
+        }
+
+        for (open, close) in generic_pairs {
+            let Some(open) = stream.tokens.iter().position(|token| token.start == open) else {
+                continue;
+            };
+            let Some(close) = stream.tokens.iter().position(|token| token.start == close) else {
+                continue;
+            };
+            pairs.insert(open, close);
         }
 
         let mut item_ends = HashSet::new();
@@ -486,6 +653,55 @@ impl Layout {
             .enumerate()
             .map(|(index, token)| (token.start, index))
             .collect();
+        let mut import_groups = HashMap::new();
+        for node in root
+            .descendants()
+            .filter(|node| node.kind() == SyntaxKind::ImportPathSegment)
+        {
+            let Some(open) = node
+                .children_with_tokens()
+                .filter_map(rowan::NodeOrToken::into_token)
+                .find(|token| token.kind() == T!['{'])
+                .and_then(|token| {
+                    token_indices
+                        .get(&usize::from(token.text_range().start()))
+                        .copied()
+                })
+            else {
+                continue;
+            };
+            let mut items = Vec::new();
+            for path in node
+                .children()
+                .filter(|child| child.kind() == SyntaxKind::ImportPath)
+            {
+                let significant: Vec<_> = significant_tokens(&path).collect();
+                let (Some(first), Some(last)) = (significant.first(), significant.last()) else {
+                    continue;
+                };
+                let Some(&start) = token_indices.get(&usize::from(first.text_range().start()))
+                else {
+                    continue;
+                };
+                let Some(&last) = token_indices.get(&usize::from(last.text_range().start())) else {
+                    continue;
+                };
+                let end = last + 1;
+                let sort_key = stream.tokens[start..end]
+                    .iter()
+                    .map(|token| token.text.as_str())
+                    .collect();
+                items.push(ImportGroupItem {
+                    start,
+                    end,
+                    sort_key,
+                });
+            }
+            items.sort_by(|left, right| left.sort_key.cmp(&right.sort_key));
+            if !items.is_empty() {
+                import_groups.insert(open, items);
+            }
+        }
         let mut groups = HashMap::new();
         let mut binary_operators = HashMap::new();
         for node in root
@@ -524,16 +740,86 @@ impl Layout {
             }
         }
 
+        let mut document_items = Vec::new();
+        let mut next_import_group = 0;
+        let mut previous_was_import = false;
+        for (original_index, item) in document.items().enumerate() {
+            let significant: Vec<_> = significant_tokens(item.syntax()).collect();
+            let (Some(first), Some(last)) = (significant.first(), significant.last()) else {
+                continue;
+            };
+            let Some(&start) = token_indices.get(&usize::from(first.text_range().start())) else {
+                continue;
+            };
+            let Some(&last) = token_indices.get(&usize::from(last.text_range().start())) else {
+                continue;
+            };
+            let mut end = last + 1;
+            if stream
+                .tokens
+                .get(end)
+                .is_some_and(|token| token.kind == T![;])
+            {
+                end += 1;
+            }
+
+            let is_import = matches!(&item, AstItem::ImportItem(_));
+            let import_group = is_import.then(|| {
+                if !previous_was_import || (start > 0 && stream.gaps[start].newlines > 1) {
+                    next_import_group += 1;
+                }
+                next_import_group
+            });
+            previous_was_import = is_import;
+            let compact_group = matches!(
+                item.syntax().kind(),
+                SyntaxKind::ConstantItem | SyntaxKind::TypeAliasItem
+            )
+            .then_some(item.syntax().kind())
+            .filter(|_| !item.syntax().text().to_string().contains('\n'));
+
+            let path_key = stream.tokens[start..end]
+                .iter()
+                .filter(|token| !matches!(token.kind, T![import] | T![export] | T![;]))
+                .map(|token| token.text.as_str())
+                .collect::<String>();
+            let keyword_key = stream.tokens[start..end]
+                .first()
+                .map_or("", |token| token.text.as_str());
+            document_items.push(DocumentItem {
+                start,
+                end,
+                import_group,
+                compact_group,
+                sort_key: format!("{path_key}\0{keyword_key}"),
+                original_index,
+            });
+        }
+        document_items.sort_by(
+            |left, right| match (left.import_group, right.import_group) {
+                (Some(left_group), Some(right_group)) => left_group
+                    .cmp(&right_group)
+                    .then_with(|| left.sort_key.cmp(&right.sort_key))
+                    .then_with(|| left.original_index.cmp(&right.original_index)),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => left.original_index.cmp(&right.original_index),
+            },
+        );
+
         Ok(Self {
             pairs,
             block_openers,
             braced_openers,
+            trailing_comma_openers,
             generic_tokens,
             prefix_operators,
             attached_openers,
             item_ends,
             groups,
             binary_operators,
+            document_items,
+            import_groups,
         })
     }
 }

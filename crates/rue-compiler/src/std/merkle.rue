@@ -27,13 +27,13 @@ export fn calculate_merkle_root(
                 current_hash
             } else {
                 additional_steps.first
-            }
+            },
         ),
-        additional_steps.rest
+        additional_steps.rest,
     )
 }
 
-fn simplify_merkle_proof_after_leaf(leaf_hash: Bytes32, proof: MerkleProof,) -> Bytes32 {
+fn simplify_merkle_proof_after_leaf(leaf_hash: Bytes32, proof: MerkleProof) -> Bytes32 {
     if proof.hashes is nil {
         return leaf_hash;
     }
@@ -49,12 +49,12 @@ fn simplify_merkle_proof_after_leaf(leaf_hash: Bytes32, proof: MerkleProof,) -> 
                 leaf_hash
             } else {
                 proof.hashes.first
-            }
+            },
         ),
-        MerkleProof { path: proof.path >>> 1, hashes: proof.hashes.rest }
+        MerkleProof { path: proof.path >>> 1, hashes: proof.hashes.rest },
     )
 }
 
-export inline fn simplify_merkle_proof(leaf: Bytes32, proof: MerkleProof,) -> Bytes32 {
+export inline fn simplify_merkle_proof(leaf: Bytes32, proof: MerkleProof) -> Bytes32 {
     simplify_merkle_proof_after_leaf(tree_hash_atom(leaf), proof)
 }

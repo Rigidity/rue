@@ -57,6 +57,6 @@ test fn tests() {
             "13",
             "14",
             "FizzBuzz",
-        ]
+        ],
     );
 }

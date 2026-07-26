@@ -82,7 +82,7 @@ inline const RING_MORPH_BYTE: Bytes = 0xcb;
 inline fn cat_puzzle_hash(cat_info: CatInfo, inner_puzzle_hash: Bytes32) -> Bytes32 {
     curry_tree_hash(
         cat_info.mod_hash,
-        [cat_info.mod_hash_hash, tree_hash_atom(cat_info.asset_id), inner_puzzle_hash]
+        [cat_info.mod_hash_hash, tree_hash_atom(cat_info.asset_id), inner_puzzle_hash],
     )
 }
 
@@ -99,7 +99,7 @@ fn main(
     extra_delta: Int,
 ) -> List<Condition> {
     // For simplicity, we'll pack these values into a struct.
-    let cat_info = CatInfo { mod_hash, mod_hash_hash: tree_hash_atom(mod_hash), asset_id, };
+    let cat_info = CatInfo { mod_hash, mod_hash_hash: tree_hash_atom(mod_hash), asset_id };
 
     // Calculate the inner puzzle hash and conditions.
     let morph = morph_conditions(inner_puzzle(...inner_solution), cat_info, nil);
@@ -156,7 +156,7 @@ fn main(
             lineage_proof,
             extra_delta,
             conditions,
-            morph.tail_info.tail_solution
+            morph.tail_info.tail_solution,
         );
 
         // Prepend the TAIL's conditions.
@@ -198,7 +198,7 @@ fn morph_conditions(
 ) -> Morph {
     // If there are no conditions, return an empty morph.
     if conditions is nil {
-        return Morph { conditions: nil, sum: 0, tail_info: tail_info, };
+        return Morph { conditions: nil, sum: 0, tail_info: tail_info };
     }
 
     inline let condition = conditions.first;
@@ -207,10 +207,10 @@ fn morph_conditions(
         let rest = morph_conditions(
             conditions.rest,
             cat_info,
-            TailInfo { tail_puzzle: condition.tail_puzzle, tail_solution: condition.tail_solution, }
+            TailInfo { tail_puzzle: condition.tail_puzzle, tail_solution: condition.tail_solution },
         );
 
-        return Morph { conditions: rest.conditions, sum: rest.sum, tail_info: rest.tail_info, };
+        return Morph { conditions: rest.conditions, sum: rest.sum, tail_info: rest.tail_info };
     }
 
     let morphed = if condition is CreateCoin {

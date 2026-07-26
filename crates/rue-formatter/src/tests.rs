@@ -33,10 +33,9 @@ fn types_bindings_generics_and_imports() {
         "import foo::*; import foo::{bar,baz,}; type Pair<T>=(T,T,); fn take<T>(...[a,{x:y}]:[T,...T])->fn(a:T)->T{}",
         expect![[r#"
             import foo::*;
+            import foo::{bar, baz};
 
-            import foo::{bar, baz,};
-
-            type Pair<T> = (T, T,);
+            type Pair<T> = (T, T);
 
             fn take<T>(...[a, { x: y }]: [T, ...T]) -> fn(a: T) -> T {}
         "#]],
@@ -112,7 +111,7 @@ fn width_breaks_delimited_groups() {
     expect![[r#"
         fn main(
             first: VeryLongType,
-            second: VeryLongType
+            second: VeryLongType,
         ) -> VeryLongType {
             first(second, second)
         }
@@ -157,7 +156,7 @@ fn standalone_comment_inside_broken_group() {
             fn main() {
                 [
                     // explain
-                    1
+                    1,
                 ]
             }
         "#]],
@@ -191,7 +190,7 @@ fn nested_delimiters_use_single_indent() {
     expect![[r#"
         fn main() {
             assert tree_hash(
-                fizz_buzz(1, 15)
+                fizz_buzz(1, 15),
             ) == tree_hash([1, 2, 3, 4, 5, 6]);
         }
     "#]]
@@ -254,10 +253,85 @@ fn comparison_wraps_rhs_inside_logical_chain() {
                 && second_value == call(
                     first,
                     second,
-                    third
+                    third,
                 );
         }
     "#]]
     .assert_eq(&output);
     assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn generic_trailing_commas_follow_layout() {
+    check(
+        "fn flat<T,>(){}",
+        expect![[r#"
+            fn flat<T>() {}
+        "#]],
+    );
+
+    let options = FormatOptions {
+        max_width: 30,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn example<FirstLongParameter,SecondLongParameter>(){}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn example<
+            FirstLongParameter,
+            SecondLongParameter,
+        >() {}
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn imports_are_hoisted_grouped_and_sorted() {
+    check(
+        "const VALUE:Int=1; import zebra; import beta::{zeta,alpha};\n\nimport delta; import charlie; fn main(){}",
+        expect![[r#"
+            import beta::{alpha, zeta};
+            import zebra;
+
+            import charlie;
+            import delta;
+
+            const VALUE: Int = 1;
+
+            fn main() {}
+        "#]],
+    );
+    check(
+        "const VALUE:Int=1;\n// zebra\nimport zebra;\nimport alpha;",
+        expect![[r#"
+            import alpha;
+            // zebra
+            import zebra;
+
+            const VALUE: Int = 1;
+        "#]],
+    );
+}
+
+#[test]
+fn compact_items_are_grouped() {
+    check(
+        "const FIRST:Int=1;\nconst SECOND:Int=2;\n\nconst THIRD:Int=3;\nconst FOURTH:Int=4;\n\ntype A=Int;\ntype B=Int;\n\nfn main(){}",
+        expect![[r#"
+            const FIRST: Int = 1;
+            const SECOND: Int = 2;
+
+            const THIRD: Int = 3;
+            const FOURTH: Int = 4;
+
+            type A = Int;
+            type B = Int;
+
+            fn main() {}
+        "#]],
+    );
 }

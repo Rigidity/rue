@@ -145,16 +145,105 @@ fn verify_equivalence(before: &Parsed, after: &Parsed) -> Result<(), FormatError
 
 fn structural_signature(root: &SyntaxNode) -> Vec<String> {
     let mut signature = Vec::new();
-    for element in root.descendants_with_tokens() {
+    append_node_signature(root, &mut signature);
+    signature
+}
+
+fn append_node_signature(node: &SyntaxNode, signature: &mut Vec<String>) {
+    signature.push(format!("n:{:?}", node.kind()));
+
+    if node.kind() == SyntaxKind::Document {
+        let mut imports = Vec::new();
+        let mut items = Vec::new();
+        for child in node.children() {
+            let mut child_signature = Vec::new();
+            append_node_signature(&child, &mut child_signature);
+            if child.kind() == SyntaxKind::ImportItem {
+                imports.push(child_signature);
+            } else {
+                items.push(child_signature);
+            }
+        }
+        imports.sort();
+        signature.extend(imports.into_iter().flatten());
+        signature.extend(items.into_iter().flatten());
+        return;
+    }
+
+    let mut sorted_import_paths = if node.kind() == SyntaxKind::ImportPathSegment {
+        let mut paths: Vec<_> = node
+            .children()
+            .filter(|child| child.kind() == SyntaxKind::ImportPath)
+            .map(|child| {
+                let mut child_signature = Vec::new();
+                append_node_signature(&child, &mut child_signature);
+                child_signature
+            })
+            .collect();
+        paths.sort();
+        paths.into_iter()
+    } else {
+        Vec::new().into_iter()
+    };
+
+    for element in node.children_with_tokens() {
         match element {
-            rowan::NodeOrToken::Node(node) => signature.push(format!("n:{:?}", node.kind())),
+            rowan::NodeOrToken::Node(child)
+                if node.kind() == SyntaxKind::ImportPathSegment
+                    && child.kind() == SyntaxKind::ImportPath =>
+            {
+                signature.extend(
+                    sorted_import_paths
+                        .next()
+                        .expect("each import path has a sorted signature"),
+                );
+            }
+            rowan::NodeOrToken::Node(child) => append_node_signature(&child, signature),
+            rowan::NodeOrToken::Token(token)
+                if token.kind() == rue_parser::T![,] && is_optional_trailing_comma(&token) => {}
             rowan::NodeOrToken::Token(token) if !token.kind().is_trivia() => {
                 signature.push(format!("t:{:?}:{}", token.kind(), token.text()));
             }
             rowan::NodeOrToken::Token(_) => {}
         }
     }
-    signature
+}
+
+fn is_optional_trailing_comma(token: &rue_parser::SyntaxToken) -> bool {
+    let mut next = token.next_token();
+    while next.as_ref().is_some_and(|token| token.kind().is_trivia()) {
+        next = next.and_then(|token| token.next_token());
+    }
+    if !next.is_some_and(|token| {
+        matches!(
+            token.kind(),
+            rue_parser::T![')'] | rue_parser::T![']'] | rue_parser::T!['}'] | rue_parser::T![>]
+        )
+    }) {
+        return false;
+    }
+
+    token.parent_ancestors().any(|node| {
+        matches!(
+            node.kind(),
+            SyntaxKind::FunctionItem
+                | SyntaxKind::FunctionCallExpr
+                | SyntaxKind::LambdaExpr
+                | SyntaxKind::LambdaType
+                | SyntaxKind::PairExpr
+                | SyntaxKind::PairType
+                | SyntaxKind::PairBinding
+                | SyntaxKind::ListExpr
+                | SyntaxKind::ListType
+                | SyntaxKind::ListBinding
+                | SyntaxKind::StructItem
+                | SyntaxKind::StructInitializerExpr
+                | SyntaxKind::StructBinding
+                | SyntaxKind::ImportPathSegment
+                | SyntaxKind::GenericParameters
+                | SyntaxKind::GenericArguments
+        )
+    })
 }
 
 fn comment_signature(stream: &TokenStream) -> Vec<(SyntaxKind, &str)> {

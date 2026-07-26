@@ -1,4 +1,4 @@
 diagnostics:
+- Undeclared symbol `inner` at unresolved_imports.rue:3:16
 - Undeclared symbol `inner` at unresolved_imports.rue:5:16
-- Undeclared symbol `inner` at unresolved_imports.rue:7:16
-- Unresolved import `missing` at unresolved_imports.rue:3:16
+- Unresolved import `missing` at unresolved_imports.rue:1:16

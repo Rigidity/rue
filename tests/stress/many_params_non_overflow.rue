@@ -29,7 +29,7 @@ test fn call_binary_tree() {
         23,
         24,
         25,
-        26
+        26,
     );
 }
 
@@ -60,7 +60,7 @@ test fn call_extern() {
         23,
         24,
         25,
-        26
+        26,
     );
 }
 

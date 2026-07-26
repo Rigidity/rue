@@ -1,3 +1,5 @@
+import a::thing;
+
 mod a {
     export fn thing() -> Int {
         42
@@ -6,8 +8,6 @@ mod a {
     export thing;
     export thing;
 }
-
-import a::thing;
 
 fn main() -> Int {
     thing()

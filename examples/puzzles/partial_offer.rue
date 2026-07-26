@@ -45,9 +45,9 @@ fn main(
                                 raise "Other asset amount is too small";
                             },
                             [receiver_puzzle_hash],
-                        ]
-                    ]
-                )
+                        ],
+                    ],
+                ),
         ),
     };
 
@@ -68,10 +68,10 @@ fn main(
         CreateCoin {
             puzzle_hash: proof.inner_puzzle_hash,
             amount: new_amount,
-            memos: Memos { value: [proof.inner_puzzle_hash], },
+            memos: Memos { value: [proof.inner_puzzle_hash] },
         }
     } else {
-        Remark { rest: nil, }
+        Remark { rest: nil }
     };
 
     let inner_conditions = inner_puzzle(...inner_puzzle_solution);
@@ -82,5 +82,5 @@ fn main(
         inner_conditions
     };
 
-    [assert_puzzle_announcement, assert_my_coin_id, recreate, ...rest,]
+    [assert_puzzle_announcement, assert_my_coin_id, recreate, ...rest]
 }

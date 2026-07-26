@@ -1,9 +1,9 @@
-mod a {
-    import super::a;
-}
-
 import super::x;
 
 import super;
 
 import super::super;
+
+mod a {
+    import super::a;
+}

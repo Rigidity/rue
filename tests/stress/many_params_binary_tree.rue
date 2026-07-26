@@ -259,7 +259,7 @@ test fn call_binary_tree() {
         257,
         258,
         259,
-        260
+        260,
     );
 }
 

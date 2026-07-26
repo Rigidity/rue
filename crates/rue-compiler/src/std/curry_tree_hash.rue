@@ -12,7 +12,7 @@ fn apply_hash(mod_hash: Bytes32, environment_hash: Bytes32) -> Bytes32 {
     sha256(
         2 as Bytes
             + tree_hash_atom(2 as Bytes)
-            + two_item_list_hash(quote_hash(mod_hash), environment_hash)
+            + two_item_list_hash(quote_hash(mod_hash), environment_hash),
     )
 }
 
@@ -20,7 +20,7 @@ fn update_hash_with_parameter(parameter_hash: Bytes32, environment_hash: Bytes32
     sha256(
         2 as Bytes
             + tree_hash_atom(4 as Bytes)
-            + two_item_list_hash(quote_hash(parameter_hash), environment_hash)
+            + two_item_list_hash(quote_hash(parameter_hash), environment_hash),
     )
 }
 
