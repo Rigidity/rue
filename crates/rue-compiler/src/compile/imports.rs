@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+};
 
 use indexmap::IndexMap;
 use rowan::TextRange;
@@ -166,7 +169,15 @@ pub fn resolve_imports(
     cache: &mut ImportCache,
     diagnostics: bool,
 ) {
-    let imports = flatten_imports(ctx, all_modules);
+    let mut imports = flatten_imports(ctx, all_modules);
+    imports.sort_by(|(_, left), (_, right)| compare_imports(ctx.import(*left), ctx.import(*right)));
+    let targeted_names = imports
+        .iter()
+        .filter_map(|(scope, import)| match &ctx.import(*import).items {
+            Items::Named(name) => Some((*scope, name.text().to_string())),
+            Items::All(_) => None,
+        })
+        .collect::<HashSet<_>>();
 
     let mut updated = true;
     let mut missing_imports = IndexMap::new();
@@ -182,6 +193,7 @@ pub fn resolve_imports(
                 diagnostics,
                 cache,
                 &mut missing_imports,
+                &targeted_names,
             );
         }
     }
@@ -210,6 +222,32 @@ pub fn resolve_imports(
     }
 }
 
+fn compare_imports(left: &Import, right: &Import) -> Ordering {
+    import_priority(&left.items)
+        .cmp(&import_priority(&right.items))
+        .then_with(|| {
+            left.path
+                .iter()
+                .map(Name::text)
+                .cmp(right.path.iter().map(Name::text))
+        })
+        .then_with(|| import_item_name(&left.items).cmp(import_item_name(&right.items)))
+        .then_with(|| left.exported.cmp(&right.exported))
+}
+
+fn import_priority(items: &Items) -> u8 {
+    match items {
+        Items::Named(_) => 0,
+        Items::All(_) => 1,
+    }
+}
+
+fn import_item_name(items: &Items) -> &str {
+    match items {
+        Items::Named(name) | Items::All(name) => name.text(),
+    }
+}
+
 fn resolve_import(
     ctx: &mut Compiler,
     import_scope: ScopeId,
@@ -217,6 +255,7 @@ fn resolve_import(
     diagnostics: bool,
     cache: &mut ImportCache,
     missing_imports: &mut IndexMap<ImportId, IndexMap<String, Name>>,
+    targeted_names: &HashSet<(ScopeId, String)>,
 ) -> bool {
     let import = ctx.import(import_id).clone();
     let has_super = import.has_super;
@@ -351,6 +390,9 @@ fn resolve_import(
             };
 
             for (name, symbol) in symbols {
+                if targeted_names.contains(&(import_scope, name.clone())) {
+                    continue;
+                }
                 let target = ctx.scope_mut(import_scope);
 
                 if target.symbol(&name).is_none() {
@@ -375,6 +417,9 @@ fn resolve_import(
             }
 
             for (name, ty) in types {
+                if targeted_names.contains(&(import_scope, name.clone())) {
+                    continue;
+                }
                 let target = ctx.scope_mut(import_scope);
 
                 if target.ty(&name).is_none() {
