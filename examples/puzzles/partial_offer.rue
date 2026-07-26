@@ -34,20 +34,18 @@ fn main(
     let assert_puzzle_announcement = AssertPuzzleAnnouncement {
         id: sha256(
             other_asset_offer_mod
-                + tree_hash(
+                + tree_hash([
+                    proof.parent_coin_id,
                     [
-                        proof.parent_coin_id,
-                        [
-                            receiver_puzzle_hash,
-                            if other_asset_amount > min_other_asset_amount_minus_one {
-                                other_asset_amount
-                            } else {
-                                raise "Other asset amount is too small";
-                            },
-                            [receiver_puzzle_hash],
-                        ],
+                        receiver_puzzle_hash,
+                        if other_asset_amount > min_other_asset_amount_minus_one {
+                            other_asset_amount
+                        } else {
+                            raise "Other asset amount is too small";
+                        },
+                        [receiver_puzzle_hash],
                     ],
-                ),
+                ]),
         ),
     };
 

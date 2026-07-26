@@ -122,11 +122,9 @@ test fn tests() {
         [CreateCoin { puzzle_hash: p2_puzzle_hash, amount: 1 }],
     );
 
-    assert tree_hash(conditions) == tree_hash(
-        [
-            AssertMyAmount { amount: 1 },
-            AssertMyParentId { parent_id: launcher_id },
-            CreateCoin { puzzle_hash: singleton_puzzle_hash(singleton, p2_puzzle_hash), amount: 1 },
-        ],
-    );
+    assert tree_hash(conditions) == tree_hash([
+        AssertMyAmount { amount: 1 },
+        AssertMyParentId { parent_id: launcher_id },
+        CreateCoin { puzzle_hash: singleton_puzzle_hash(singleton, p2_puzzle_hash), amount: 1 },
+    ]);
 }

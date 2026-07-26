@@ -1,4 +1,4 @@
-use rue_ast::{AstDocument, AstNode, AstNodeKind};
+use rue_ast::{AstDocument, AstExpr, AstNode, AstNodeKind};
 use rue_parser::{SyntaxKind, SyntaxNode, T};
 
 use crate::{
@@ -12,6 +12,16 @@ pub(crate) enum DelimiterStyle {
     Block,
     Braced,
     Group,
+    Fill,
+    FillBraced,
+    Hug,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SingleArgumentLayout {
+    Hug,
+    Vertical,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,7 +148,15 @@ fn analyze_nodes(
         // Intentionally exhaustive: adding a typed AST node requires an
         // explicit formatter analysis policy before this crate can compile.
         match kind {
-            AstNodeKind::Block | AstNodeKind::ModuleItem | AstNodeKind::StructItem => {
+            AstNodeKind::Block => {
+                if let Some(id) = direct_or_descendant_token(&node, T!['{'], stream)? {
+                    facts[id.index()].delimiter_style = Some(
+                        expression_block_style(&node, id, stream, facts)
+                            .unwrap_or(DelimiterStyle::Block),
+                    );
+                }
+            }
+            AstNodeKind::ModuleItem | AstNodeKind::StructItem => {
                 if let Some(id) = direct_or_descendant_token(&node, T!['{'], stream)? {
                     facts[id.index()].delimiter_style = Some(DelimiterStyle::Block);
                     if kind == AstNodeKind::StructItem {
@@ -166,6 +184,22 @@ fn analyze_nodes(
                 {
                     let id = token_id(&token, stream)?;
                     facts[id.index()].flags.insert(TokenFlags::TRAILING_COMMA);
+                    if matches!(kind, AstNodeKind::PairExpr | AstNodeKind::ListExpr)
+                        && sole_list_item_expression_kind(&node)
+                            .is_some_and(is_transparent_expression_wrapper)
+                        && !delimiter_contains_comments(id, stream, facts)
+                    {
+                        facts[id.index()].delimiter_style = Some(DelimiterStyle::Fill);
+                    }
+                }
+            }
+            AstNodeKind::GroupExpr => {
+                if let Some(id) = direct_or_descendant_token(&node, T!['('], stream)?
+                    && sole_direct_expression_kind(&node)
+                        .is_some_and(is_transparent_expression_wrapper)
+                    && !delimiter_contains_comments(id, stream, facts)
+                {
+                    facts[id.index()].delimiter_style = Some(DelimiterStyle::Fill);
                 }
             }
             AstNodeKind::GenericParameters | AstNodeKind::GenericArguments => {
@@ -210,6 +244,19 @@ fn analyze_nodes(
                     let id = token_id(&token, stream)?;
                     facts[id.index()].flags.insert(TokenFlags::ATTACHED_OPENER);
                     facts[id.index()].flags.insert(TokenFlags::TRAILING_COMMA);
+                    if kind == AstNodeKind::FunctionCallExpr
+                        && let Some(argument_layout) = single_argument_layout(&node)
+                    {
+                        facts[id.index()].delimiter_style = Some(
+                            if argument_layout == SingleArgumentLayout::Hug
+                                && !delimiter_contains_comments(id, stream, facts)
+                            {
+                                DelimiterStyle::Hug
+                            } else {
+                                DelimiterStyle::Vertical
+                            },
+                        );
+                    }
                 }
             }
             AstNodeKind::PathExpr | AstNodeKind::PathType | AstNodeKind::ImportPath => {
@@ -244,7 +291,6 @@ fn analyze_nodes(
             | AstNodeKind::StructInitializerField
             | AstNodeKind::LiteralExpr
             | AstNodeKind::ConstExpr
-            | AstNodeKind::GroupExpr
             | AstNodeKind::ListItem
             | AstNodeKind::BinaryExpr
             | AstNodeKind::IfExpr
@@ -257,6 +303,92 @@ fn analyze_nodes(
         }
     }
     Ok(())
+}
+
+fn single_argument_layout(call: &SyntaxNode) -> Option<SingleArgumentLayout> {
+    let kind = sole_list_item_expression_kind(call)?;
+    Some(if is_transparent_expression_wrapper(kind) {
+        SingleArgumentLayout::Hug
+    } else {
+        SingleArgumentLayout::Vertical
+    })
+}
+
+fn sole_list_item_expression_kind(node: &SyntaxNode) -> Option<AstNodeKind> {
+    let mut items = node
+        .children()
+        .filter(|child| AstNodeKind::of(child) == Some(AstNodeKind::ListItem));
+    let item = items.next()?;
+    if items.next().is_some() {
+        return None;
+    }
+    sole_direct_expression_kind(&item)
+}
+
+fn sole_direct_expression_kind(node: &SyntaxNode) -> Option<AstNodeKind> {
+    let mut expressions = node.children().filter_map(AstExpr::cast);
+    let expression = expressions.next()?;
+    if expressions.next().is_some() {
+        return None;
+    }
+    AstNodeKind::of(expression.syntax())
+}
+
+fn is_transparent_expression_wrapper(kind: AstNodeKind) -> bool {
+    matches!(
+        kind,
+        AstNodeKind::FunctionCallExpr
+            | AstNodeKind::StructInitializerExpr
+            | AstNodeKind::ConstExpr
+            | AstNodeKind::GroupExpr
+            | AstNodeKind::PairExpr
+            | AstNodeKind::ListExpr
+            | AstNodeKind::Block
+    )
+}
+
+fn expression_block_style(
+    node: &SyntaxNode,
+    open: TokenId,
+    stream: &TokenStream,
+    facts: &[TokenFacts],
+) -> Option<DelimiterStyle> {
+    if delimiter_contains_comments(open, stream, facts)
+        || node.parent().is_some_and(|parent| {
+            matches!(
+                parent.kind(),
+                SyntaxKind::FunctionItem
+                    | SyntaxKind::ModuleItem
+                    | SyntaxKind::IfExpr
+                    | SyntaxKind::IfStmt
+            )
+        })
+    {
+        return None;
+    }
+
+    let mut children = node.children();
+    let expression = children.next().and_then(AstExpr::cast)?;
+    if children.next().is_some() {
+        return None;
+    }
+    let kind = AstNodeKind::of(expression.syntax())?;
+    Some(if is_transparent_expression_wrapper(kind) {
+        DelimiterStyle::FillBraced
+    } else {
+        DelimiterStyle::Braced
+    })
+}
+
+fn delimiter_contains_comments(open: TokenId, stream: &TokenStream, facts: &[TokenFacts]) -> bool {
+    let Some(close) = facts[open.index()].pair else {
+        return false;
+    };
+    ((open.index() + 1)..=close.index()).any(|index| {
+        stream
+            .boundary(index)
+            .is_ok_and(|boundary| !stream.gap(boundary).comments.is_empty())
+    })
 }
 
 fn analyze_boundaries(

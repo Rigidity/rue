@@ -1,4 +1,4 @@
 diagnostics:
 - Const expression depends on runtime value `value` at const_expr_errors.rue:2:5
-- Const expression depends on runtime value `value` at const_expr_errors.rue:9:5
-- 'Const expression failed to evaluate: clvm raise at const_expr_errors.rue:15:5'
+- Const expression depends on runtime value `value` at const_expr_errors.rue:7:5
+- 'Const expression failed to evaluate: clvm raise at const_expr_errors.rue:11:5'

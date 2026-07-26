@@ -263,6 +263,7 @@ impl<'a> Formatter<'a> {
         })?;
         let source_trailing_comma =
             supports_trailing_comma && self.stream.token(previous).kind == T![,];
+        let suppress_broken_comma = style == DelimiterStyle::Hug;
         let inner_end = if source_trailing_comma {
             self.stream.boundary_before(previous)
         } else {
@@ -272,13 +273,19 @@ impl<'a> Formatter<'a> {
         let comma = if source_trailing_comma {
             let leading = self.gap_doc(self.stream.gap(inner_end), Separator::None);
             self.consumed_tokens += 1;
-            Doc::concat([leading, Doc::if_break(Doc::text(","), Doc::Nil)])
-        } else if supports_trailing_comma {
+            Doc::concat([
+                leading,
+                if suppress_broken_comma {
+                    Doc::Nil
+                } else {
+                    Doc::if_break(Doc::text(","), Doc::Nil)
+                },
+            ])
+        } else if supports_trailing_comma && !suppress_broken_comma {
             Doc::if_break(Doc::text(","), Doc::Nil)
         } else {
             Doc::Nil
         };
-        let inner = Doc::concat([inner, comma]);
         let leading_gap = self.stream.gap_before(inner_start);
         let trailing_gap = self.stream.gap_before(close);
         let leading_comment_starts_line = leading_gap
@@ -295,7 +302,11 @@ impl<'a> Formatter<'a> {
             match style {
                 DelimiterStyle::Block => Separator::Hard,
                 DelimiterStyle::Braced => Separator::Soft,
-                DelimiterStyle::Group => Separator::None,
+                DelimiterStyle::Group
+                | DelimiterStyle::Fill
+                | DelimiterStyle::FillBraced
+                | DelimiterStyle::Hug
+                | DelimiterStyle::Vertical => Separator::None,
             },
             true,
             false,
@@ -305,19 +316,46 @@ impl<'a> Formatter<'a> {
             match style {
                 DelimiterStyle::Block => Separator::Hard,
                 DelimiterStyle::Braced => Separator::Soft,
-                DelimiterStyle::Group => Separator::None,
+                DelimiterStyle::Group
+                | DelimiterStyle::Fill
+                | DelimiterStyle::FillBraced
+                | DelimiterStyle::Hug
+                | DelimiterStyle::Vertical => Separator::None,
             },
         );
 
         Ok(match style {
             DelimiterStyle::Block | DelimiterStyle::Braced => Doc::concat([
                 open_doc,
-                Doc::concat([leading, inner]).indent(),
+                Doc::concat([leading, inner, comma]).indent(),
                 trailing,
                 close_doc,
             ])
             .group_if(style == DelimiterStyle::Braced),
-            DelimiterStyle::Group => Doc::concat([
+            DelimiterStyle::Fill | DelimiterStyle::FillBraced | DelimiterStyle::Hug => {
+                let space_inside = style == DelimiterStyle::FillBraced;
+                let closing_space = if space_inside { Doc::space() } else { Doc::Nil };
+                let flat_inner = Doc::concat([
+                    leading.clone(),
+                    inner.clone(),
+                    trailing.clone(),
+                    closing_space,
+                    close_doc.clone(),
+                ]);
+                let broken_inner = Doc::concat([
+                    leading,
+                    inner,
+                    comma,
+                    trailing,
+                    Doc::concat([Doc::hard_line(), close_doc]).outdent(),
+                ]);
+                Doc::concat([
+                    open_doc,
+                    Doc::fill_choice(flat_inner, broken_inner, space_inside, true),
+                ])
+                .group()
+            }
+            DelimiterStyle::Group | DelimiterStyle::Vertical => Doc::concat([
                 open_doc,
                 Doc::concat([
                     if leading_comment_starts_line {
@@ -327,6 +365,7 @@ impl<'a> Formatter<'a> {
                     },
                     leading,
                     inner,
+                    comma,
                 ])
                 .indent(),
                 trailing,

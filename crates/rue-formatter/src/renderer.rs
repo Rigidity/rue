@@ -46,24 +46,29 @@ pub(crate) fn render(doc: &Doc, options: &FormatOptions) -> String {
                 column += 1;
             }
             Doc::Fill {
-                doc,
+                flat,
+                broken,
+                space_when_flat,
                 indent_on_break,
             } => {
-                if column < options.max_width
+                let separator_width = usize::from(*space_when_flat);
+                if column + separator_width <= options.max_width
                     && fits(
-                        options.max_width - column - 1,
+                        options.max_width - column - separator_width,
                         command.indent,
-                        doc,
+                        flat,
                         &commands,
                         Mode::Broken,
                     )
                 {
-                    output.push(' ');
-                    column += 1;
+                    if *space_when_flat {
+                        output.push(' ');
+                        column += 1;
+                    }
                     commands.push(Command {
                         indent: command.indent,
                         mode: command.mode,
-                        doc,
+                        doc: flat,
                     });
                 } else {
                     output.push('\n');
@@ -74,7 +79,7 @@ pub(crate) fn render(doc: &Doc, options: &FormatOptions) -> String {
                     commands.push(Command {
                         indent,
                         mode: command.mode,
-                        doc,
+                        doc: broken,
                     });
                 }
             }
@@ -88,6 +93,11 @@ pub(crate) fn render(doc: &Doc, options: &FormatOptions) -> String {
             }
             Doc::Indent(doc) => commands.push(Command {
                 indent: command.indent + options.indent_width,
+                mode: command.mode,
+                doc,
+            }),
+            Doc::Outdent(doc) => commands.push(Command {
+                indent: command.indent.saturating_sub(options.indent_width),
                 mode: command.mode,
                 doc,
             }),
@@ -130,8 +140,8 @@ fn has_forced_line(doc: &Doc) -> bool {
         Doc::Nil | Doc::Text(_) | Doc::Line(LineKind::Soft) => false,
         Doc::Line(LineKind::Hard | LineKind::Empty) => true,
         Doc::Concat(docs) => docs.iter().any(has_forced_line),
-        Doc::Indent(doc) | Doc::Group(doc) => has_forced_line(doc),
-        Doc::Fill { doc, .. } => has_forced_line(doc),
+        Doc::Indent(doc) | Doc::Outdent(doc) | Doc::Group(doc) => has_forced_line(doc),
+        Doc::Fill { flat, .. } => has_forced_line(flat),
         Doc::IfBreak { flat, .. } => has_forced_line(flat),
     }
 }
@@ -175,24 +185,31 @@ fn fits(
                 }
                 remaining -= 1;
             }
-            Doc::Fill { doc, .. } => {
-                if remaining == 0 {
+            Doc::Fill {
+                flat,
+                space_when_flat,
+                ..
+            } => {
+                let separator_width = usize::from(*space_when_flat);
+                if separator_width > remaining {
                     return false;
                 }
-                remaining -= 1;
+                remaining -= separator_width;
+                commands.push(Command {
+                    indent: command.indent,
+                    mode: command.mode,
+                    doc: flat,
+                });
+            }
+            Doc::Line(LineKind::Soft) => return true,
+            Doc::Line(LineKind::Hard | LineKind::Empty) => return true,
+            Doc::Indent(doc) | Doc::Outdent(doc) | Doc::Group(doc) => {
                 commands.push(Command {
                     indent: command.indent,
                     mode: command.mode,
                     doc,
                 });
             }
-            Doc::Line(LineKind::Soft) => return true,
-            Doc::Line(LineKind::Hard | LineKind::Empty) => return true,
-            Doc::Indent(doc) | Doc::Group(doc) => commands.push(Command {
-                indent: command.indent,
-                mode: command.mode,
-                doc,
-            }),
             Doc::IfBreak { broken, flat } => commands.push(Command {
                 indent: command.indent,
                 mode: command.mode,

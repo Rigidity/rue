@@ -12,17 +12,19 @@ test fn casting() {
 
 test fn hash_functions() {
     assert sha256("hello") == 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824;
-    assert sha256(
-        ...["hel", "lo"],
-    ) == 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824;
+    assert sha256(...[
+        "hel",
+        "lo",
+    ]) == 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824;
     assert sha256_inline(
         "hello",
     ) == 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824;
 
     assert keccak256("hello") == 0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8;
-    assert keccak256(
-        ...["hel", "lo"],
-    ) == 0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8;
+    assert keccak256(...[
+        "hel",
+        "lo",
+    ]) == 0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8;
     assert keccak256_inline(
         "hello",
     ) == 0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8;

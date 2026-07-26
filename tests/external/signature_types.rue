@@ -11,7 +11,5 @@ struct SecondProof {
 type Proof = FirstProof | SecondProof;
 
 fn main() -> Bytes32 {
-    const {
-        tree_hash(external)
-    }
+    const { tree_hash(external) }
 }

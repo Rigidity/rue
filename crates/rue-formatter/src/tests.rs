@@ -98,13 +98,9 @@ fn all_expression_families() {
                 debug fn<T>(a: T): T => a;
                 assert x is Int;
                 return if x > 0 {
-                    {
-                        x
-                    }.field as Int
+                    { x }.field as Int
                 } else {
-                    const {
-                        x
-                    }
+                    const { x }
                 };
             }
         "#]],
@@ -152,9 +148,10 @@ fn nested_delimiters_use_single_indent() {
     .unwrap();
     expect![[r#"
         fn main() {
-            assert tree_hash(
-                fizz_buzz(1, 15),
-            ) == tree_hash([1, 2, 3, 4, 5, 6]);
+            assert tree_hash(fizz_buzz(
+                1,
+                15,
+            )) == tree_hash([1, 2, 3, 4, 5, 6]);
         }
     "#]]
     .assert_eq(&output);
@@ -473,12 +470,334 @@ fn collection_and_struct_expressions() {
                     let value = 1;
                     value
                 };
+                const { 1 }
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn expression_blocks_stay_compact_when_their_expression_fits() {
+    check(
+        "fn main(){const{1};{2}}",
+        expect![[r#"
+            fn main() {
+                const { 1 };
+                { 2 }
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn expression_blocks_are_vertical_around_wrapped_binary_chains() {
+    let options = FormatOptions {
+        max_width: 32,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){const{first_long_value+second_long_value+third_long_value}}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            const {
+                first_long_value
+                    + second_long_value
+                    + third_long_value
+            }
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn standalone_expression_blocks_are_vertical_around_binary_chains() {
+    let options = FormatOptions {
+        max_width: 32,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){{first_long_value+second_long_value+third_long_value}}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            {
+                first_long_value
+                    + second_long_value
+                    + third_long_value
+            }
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn binary_expression_blocks_obey_the_full_width_boundary() {
+    let exact = FormatOptions {
+        max_width: 28,
+        ..FormatOptions::default()
+    };
+    let flat = format_source("fn main(){const{first+second}}", &exact).unwrap();
+    expect![[r#"
+        fn main() {
+            const { first + second }
+        }
+    "#]]
+    .assert_eq(&flat);
+
+    let narrow = FormatOptions {
+        max_width: 27,
+        ..FormatOptions::default()
+    };
+    let vertical = format_source("fn main(){const{first+second}}", &narrow).unwrap();
+    expect![[r#"
+        fn main() {
+            const {
+                first + second
+            }
+        }
+    "#]]
+    .assert_eq(&vertical);
+    assert_eq!(format_source(&vertical, &narrow).unwrap(), vertical);
+}
+
+#[test]
+fn flat_calls_remain_flat() {
+    check(
+        "fn main(){func(a,b)}",
+        expect![[r#"
+            fn main() {
+                func(a, b)
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn binary_call_arguments_use_vertical_single_expression_layout() {
+    let options = FormatOptions {
+        max_width: 32,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){consume(first_long_value+second_long_value+third_long_value,)}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            consume(
+                first_long_value
+                    + second_long_value
+                    + third_long_value,
+            )
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn one_argument_outer_calls_fill_before_broken_inner_lists() {
+    let options = FormatOptions {
+        max_width: 30,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){outer(inner(first_long_value,second_long_value),)}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            outer(inner(
+                first_long_value,
+                second_long_value,
+            ))
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn one_argument_call_hugging_recurses_through_wrappers() {
+    let options = FormatOptions {
+        max_width: 30,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){func({const{(first_operand,second_operand)}})}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            func({ const { (
+                first_operand,
+                second_operand,
+            ) } })
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn binary_inside_hugged_call_wrapper_breaks_at_inner_call() {
+    let options = FormatOptions {
+        max_width: 32,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){outer(inner(first_long_value+second_long_value+third_long_value),)}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            outer(inner(
+                first_long_value
+                    + second_long_value
+                    + third_long_value,
+            ))
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn single_argument_comments_force_vertical_layout_with_comma() {
+    let options = FormatOptions {
+        max_width: 32,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){outer(/* note */ first_long_value+second_long_value)}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            outer(
+                /* note */ first_long_value
+                    + second_long_value,
+            )
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn call_hugging_obeys_exact_width_boundary() {
+    let exact = FormatOptions {
+        max_width: 25,
+        ..FormatOptions::default()
+    };
+    let flat = format_source("fn main(){outer(inner(a,b,c))}", &exact).unwrap();
+    expect![[r#"
+        fn main() {
+            outer(inner(a, b, c))
+        }
+    "#]]
+    .assert_eq(&flat);
+
+    let narrow = FormatOptions {
+        max_width: 24,
+        ..FormatOptions::default()
+    };
+    let broken = format_source("fn main(){outer(inner(a,b,c))}", &narrow).unwrap();
+    expect![[r#"
+        fn main() {
+            outer(inner(
+                a,
+                b,
+                c,
+            ))
+        }
+    "#]]
+    .assert_eq(&broken);
+    assert_eq!(format_source(&broken, &narrow).unwrap(), broken);
+}
+
+#[test]
+fn multiple_arguments_keep_fully_broken_list_layout() {
+    let options = FormatOptions {
+        max_width: 24,
+        ..FormatOptions::default()
+    };
+    let output = format_source(
+        "fn main(){outer(first_long_value,second_long_value)}",
+        &options,
+    )
+    .unwrap();
+    expect![[r#"
+        fn main() {
+            outer(
+                first_long_value,
+                second_long_value,
+            )
+        }
+    "#]]
+    .assert_eq(&output);
+    assert_eq!(format_source(&output, &options).unwrap(), output);
+}
+
+#[test]
+fn const_blocks_with_comments_or_statements_remain_blocks() {
+    check(
+        "fn main(){const{// explain\n1};const{let value=1;value}}",
+        expect![[r#"
+            fn main() {
                 const {
+                    // explain
                     1
+                };
+                const {
+                    let value = 1;
+                    value
                 }
             }
         "#]],
     );
+}
+
+#[test]
+fn fill_layout_obeys_exact_width_and_custom_indentation() {
+    let exact = FormatOptions {
+        max_width: 17,
+        indent_width: 2,
+    };
+    let flat = format_source("fn main(){const{12345}}", &exact).unwrap();
+    expect![[r#"
+        fn main() {
+          const { 12345 }
+        }
+    "#]]
+    .assert_eq(&flat);
+
+    let narrow = FormatOptions {
+        max_width: 14,
+        indent_width: 2,
+    };
+    let broken = format_source("fn main(){const{12345}}", &narrow).unwrap();
+    expect![[r#"
+        fn main() {
+          const {
+            12345
+          }
+        }
+    "#]]
+    .assert_eq(&broken);
+    assert_eq!(format_source(&broken, &narrow).unwrap(), broken);
 }
 
 #[test]

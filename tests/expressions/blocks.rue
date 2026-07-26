@@ -1,14 +1,10 @@
 test fn simple() -> Int {
-    {
-        42
-    }
+    { 42 }
 }
 
 test fn capture() -> Int {
     let value = 42;
-    {
-        value * 2
-    }
+    { value * 2 }
 }
 
 test fn shadow() -> Int {
@@ -31,11 +27,5 @@ test fn binding() -> Int {
 }
 
 test fn nested() -> Int {
-    {
-        {
-            {
-                42
-            }
-        }
-    }
+    { { { 42 } } }
 }

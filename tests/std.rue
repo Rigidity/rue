@@ -64,9 +64,14 @@ test fn currying() {
 }
 
 test fn recursion() {
-    check_each(
-        [nil, "Hello, world!", (100, 200), [1, 2, 3], fn(a: Int, b: Int) => a + b, check_each],
-    );
+    check_each([
+        nil,
+        "Hello, world!",
+        (100, 200),
+        [1, 2, 3],
+        fn(a: Int, b: Int) => a + b,
+        check_each,
+    ]);
 }
 
 fn check_each(list: List<Any>) {
