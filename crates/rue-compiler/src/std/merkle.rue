@@ -1,4 +1,5 @@
 // merkle.rue by yakuhito
+
 import tree_hash::{tree_hash_atom, tree_hash_pair};
 
 export struct MerkleProof {
