@@ -11,6 +11,7 @@ use crate::{
 pub(crate) enum DelimiterStyle {
     Block,
     Braced,
+    ConditionalBraced,
     Group,
     Fill,
     FillBraced,
@@ -56,6 +57,7 @@ impl TokenFlags {
     const PREFIX_OPERATOR: u8 = 1 << 2;
     const ATTACHED_OPENER: u8 = 1 << 3;
     const ABSOLUTE_PATH_START: u8 = 1 << 4;
+    const CONDITIONAL_GROUP: u8 = 1 << 5;
 
     fn insert(&mut self, flag: u8) {
         self.0 |= flag;
@@ -85,6 +87,10 @@ impl TokenFacts {
 
     pub(crate) fn is_absolute_path_start(&self) -> bool {
         self.flags.contains(TokenFlags::ABSOLUTE_PATH_START)
+    }
+
+    pub(crate) fn is_conditional_group(&self) -> bool {
+        self.flags.contains(TokenFlags::CONDITIONAL_GROUP)
     }
 }
 
@@ -299,13 +305,29 @@ fn analyze_nodes(
             | AstNodeKind::ConstExpr
             | AstNodeKind::ListItem
             | AstNodeKind::BinaryExpr
-            | AstNodeKind::IfExpr
             | AstNodeKind::GuardExpr
             | AstNodeKind::CastExpr
             | AstNodeKind::FieldAccessExpr
             | AstNodeKind::NamedBinding
             | AstNodeKind::ListBindingItem
             | AstNodeKind::StructFieldBinding => {}
+            AstNodeKind::IfExpr => {
+                if !is_inline_conditional(&node) {
+                    continue;
+                }
+                let mut tokens = significant_tokens(&node);
+                let first = tokens.next().ok_or_else(|| {
+                    FormatError::Internal(
+                        "conditional expression has no significant token".to_string(),
+                    )
+                })?;
+                let last = tokens.last().unwrap_or_else(|| first.clone());
+                let start = token_id(&first, stream)?;
+                facts[start.index()].group_end = Some(token_id(&last, stream)?);
+                facts[start.index()]
+                    .flags
+                    .insert(TokenFlags::CONDITIONAL_GROUP);
+            }
         }
     }
     Ok(())
@@ -363,11 +385,8 @@ fn expression_block_style(
         || node.parent().is_some_and(|parent| {
             matches!(
                 parent.kind(),
-                SyntaxKind::FunctionItem
-                    | SyntaxKind::ModuleItem
-                    | SyntaxKind::IfExpr
-                    | SyntaxKind::IfStmt
-            )
+                SyntaxKind::FunctionItem | SyntaxKind::ModuleItem | SyntaxKind::IfStmt
+            ) || (parent.kind() == SyntaxKind::IfExpr && !is_inline_conditional(&parent))
         })
     {
         return None;
@@ -379,11 +398,29 @@ fn expression_block_style(
         return None;
     }
     let kind = AstNodeKind::of(expression.syntax())?;
+    if node
+        .parent()
+        .is_some_and(|parent| parent.kind() == SyntaxKind::IfExpr)
+    {
+        return Some(DelimiterStyle::ConditionalBraced);
+    }
     Some(if is_transparent_expression_wrapper(kind) {
         DelimiterStyle::FillBraced
     } else {
         DelimiterStyle::Braced
     })
+}
+
+fn is_inline_conditional(node: &SyntaxNode) -> bool {
+    node.ancestors()
+        .take_while(|ancestor| ancestor.kind() == SyntaxKind::IfExpr)
+        .any(|conditional| {
+            conditional.children_with_tokens().any(|element| {
+                element
+                    .as_token()
+                    .is_some_and(|token| token.kind() == T![inline])
+            })
+        })
 }
 
 fn delimiter_contains_comments(open: TokenId, stream: &TokenStream, facts: &[TokenFacts]) -> bool {

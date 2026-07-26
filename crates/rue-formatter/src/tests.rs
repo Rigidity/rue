@@ -977,6 +977,23 @@ fn lambda_and_conditional_expression_forms() {
 }
 
 #[test]
+fn short_conditional_expression_blocks_stay_flat() {
+    let source = "fn main(){let value=inline if condition{first}else{second};}";
+    let exact = FormatOptions {
+        max_width: 62,
+        ..FormatOptions::default()
+    };
+    let flat = format_source(source, &exact).unwrap();
+    expect![[r#"
+        fn main() {
+            let value = inline if condition { first } else { second };
+        }
+    "#]]
+    .assert_eq(&flat);
+    assert_eq!(format_source(&flat, &exact).unwrap(), flat);
+}
+
+#[test]
 fn type_forms() {
     check(
         r#"type Paths=::root::Type<super::Value>;type Literals=42|"text"|true|nil;type Group=(Int);type Pair=(Int,String,);type List=[Int,...String,];type Callback=fn<T>(value:T,...rest:[T])->T;"#,

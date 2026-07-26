@@ -7,19 +7,9 @@ test fn lazy_if(value: Int) -> String {
 }
 
 test fn eager_if_grouped(value: Int) -> String {
-    (
-        inline if value > 100 {
-            "Large"
-        } else {
-            "Small"
-        }
-    )
+    (inline if value > 100 { "Large" } else { "Small" })
 }
 
 test fn eager_if_ungrouped(value: Int) -> String {
-    inline if value > 100 {
-        "Large"
-    } else {
-        "Small"
-    }
+    inline if value > 100 { "Large" } else { "Small" }
 }

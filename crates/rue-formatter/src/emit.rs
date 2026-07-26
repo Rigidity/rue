@@ -111,6 +111,9 @@ impl<'a> Formatter<'a> {
             {
                 return Ok(self.binary_span(span)?.group());
             }
+            if allow_outer_group && self.layout.facts(span.start()).is_conditional_group() {
+                return Ok(self.span_inner(span, false)?.group());
+            }
             if allow_outer_group {
                 return self.grouped_span(span);
             }
@@ -188,6 +191,9 @@ impl<'a> Formatter<'a> {
     }
 
     fn grouped_span(&mut self, span: TokenSpan) -> Result<Doc, FormatError> {
+        if self.layout.facts(span.start()).is_conditional_group() {
+            return Ok(self.span_inner(span, false)?.group());
+        }
         if !self
             .layout
             .facts(span.start())
@@ -319,7 +325,7 @@ impl<'a> Formatter<'a> {
             leading_gap,
             match style {
                 DelimiterStyle::Block => Separator::Hard,
-                DelimiterStyle::Braced => Separator::Soft,
+                DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => Separator::Soft,
                 DelimiterStyle::Group
                 | DelimiterStyle::Fill
                 | DelimiterStyle::FillBraced
@@ -333,7 +339,7 @@ impl<'a> Formatter<'a> {
             trailing_gap,
             match style {
                 DelimiterStyle::Block => Separator::Hard,
-                DelimiterStyle::Braced => Separator::Soft,
+                DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => Separator::Soft,
                 DelimiterStyle::Group
                 | DelimiterStyle::Fill
                 | DelimiterStyle::FillBraced
@@ -343,13 +349,15 @@ impl<'a> Formatter<'a> {
         );
 
         Ok(match style {
-            DelimiterStyle::Block | DelimiterStyle::Braced => Doc::concat([
-                open_doc,
-                Doc::concat([leading, inner, comma]).indent(),
-                trailing,
-                close_doc,
-            ])
-            .group_if(style == DelimiterStyle::Braced),
+            DelimiterStyle::Block | DelimiterStyle::Braced | DelimiterStyle::ConditionalBraced => {
+                Doc::concat([
+                    open_doc,
+                    Doc::concat([leading, inner, comma]).indent(),
+                    trailing,
+                    close_doc,
+                ])
+                .group_if(style == DelimiterStyle::Braced)
+            }
             DelimiterStyle::Fill | DelimiterStyle::FillBraced | DelimiterStyle::Hug => {
                 let space_inside = style == DelimiterStyle::FillBraced;
                 let closing_space = if space_inside { Doc::space() } else { Doc::Nil };

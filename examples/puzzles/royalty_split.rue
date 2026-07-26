@@ -52,11 +52,7 @@ fn split_amount_and_create_coins(
 ) -> List<Condition> {
     let create_coin = CreateCoin {
         puzzle_hash: payouts.first.puzzle_hash,
-        amount: inline if payouts.rest is nil {
-            remaining_amount
-        } else {
-            this_amount
-        },
+        amount: inline if payouts.rest is nil { remaining_amount } else { this_amount },
         memos: Memos { value: [payouts.first.puzzle_hash] },
     };
 
