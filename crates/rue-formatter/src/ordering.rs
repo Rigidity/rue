@@ -122,14 +122,22 @@ pub(crate) fn plan_document(
     let (header, first_leading) = split_file_header(stream.gap_before(items[0].span.start()));
     items[0].leading = first_leading;
     for index in 1..items.len() {
-        let (trailing, leading) = split_between(stream.gap_before(items[index].span.start()));
+        let (mut trailing, leading) = split_between(stream.gap_before(items[index].span.start()));
+        if items[index - 1].import_group != items[index].import_group
+            && !trailing.gap.comments.is_empty()
+        {
+            trailing.gap.newlines = trailing.gap.newlines.min(1);
+        }
         items[index - 1].trailing = trailing;
         items[index].leading = leading;
     }
     let last = items
         .last_mut()
         .expect("non-empty document plan has a final item");
-    let (trailing, footer) = split_between(stream.final_gap());
+    let (mut trailing, footer) = split_between(stream.final_gap());
+    if last.import_group.is_some() && !trailing.gap.comments.is_empty() {
+        trailing.gap.newlines = trailing.gap.newlines.min(1);
+    }
     last.trailing = trailing;
 
     items.sort_by(

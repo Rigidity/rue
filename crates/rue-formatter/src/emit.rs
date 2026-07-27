@@ -46,21 +46,26 @@ impl<'a> Formatter<'a> {
                 Separator::None
             } else {
                 let previous = &items[position - 1];
-                if previous.trailing.gap.comments.is_empty() {
-                    match (previous.import_group, item.import_group) {
-                        (Some(left), Some(right)) if left == right => Separator::Hard,
-                        (None, None)
-                            if previous.compact_group.is_some()
-                                && previous.compact_group == item.compact_group
-                                && (item.span.start().index() == 0
-                                    || self.stream.gap_before(item.span.start()).newlines <= 1) =>
-                        {
-                            Separator::Hard
-                        }
-                        _ => Separator::Empty,
+                let requested = match (previous.import_group, item.import_group) {
+                    (Some(left), Some(right)) if left == right => Separator::Hard,
+                    (None, None)
+                        if previous.compact_group.is_some()
+                            && previous.compact_group == item.compact_group
+                            && (item.span.start().index() == 0
+                                || self.stream.gap_before(item.span.start()).newlines <= 1) =>
+                    {
+                        Separator::Hard
+                    }
+                    _ => Separator::Empty,
+                };
+                if trivia_ends_line(&previous.trailing) {
+                    match requested {
+                        Separator::Hard => Separator::None,
+                        Separator::Empty => Separator::Hard,
+                        _ => requested,
                     }
                 } else {
-                    Separator::None
+                    requested
                 }
             };
             let mut leading = item.leading.clone();

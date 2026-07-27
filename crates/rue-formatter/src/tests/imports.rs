@@ -68,6 +68,23 @@ fn trailing_comments_stay_with_sorted_imports() {
             import zeta; // zeta tail
         "#]],
     );
+    check(
+        "import b::b; // b\nimport a::a; // a\n\nimport super::shared::*;",
+        expect![[r#"
+            import a::a; // a
+            import b::b; // b
+
+            import super::shared::*;
+        "#]],
+    );
+    check(
+        "import a::a; // a\nimport super::shared::*;\nimport b::b; // b\n\n",
+        expect![[r#"
+            import a::a; // a
+            import b::b; // b
+            import super::shared::*;
+        "#]],
+    );
 }
 
 #[test]
