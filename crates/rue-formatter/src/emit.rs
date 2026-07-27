@@ -6,7 +6,6 @@ use crate::{
     document::Doc,
     ordering::ImportGroupPlan,
     token_stream::{Comment, CommentPlacement, Gap, TokenId, TokenSpan, TokenStream},
-    trivia::Trivia,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +17,19 @@ enum Separator {
     Empty,
 }
 
-pub(crate) struct Formatter<'a> {
+impl Separator {
+    fn after(self, gap: &Gap) -> Self {
+        if !gap.ends_line() {
+            return self;
+        }
+        match self {
+            Self::Empty => Self::Hard,
+            _ => Self::None,
+        }
+    }
+}
+
+pub struct Formatter<'a> {
     stream: &'a TokenStream,
     layout: Layout,
     consumed_tokens: usize,
@@ -26,7 +37,7 @@ pub(crate) struct Formatter<'a> {
 }
 
 impl<'a> Formatter<'a> {
-    pub(crate) fn new(stream: &'a TokenStream, layout: Layout) -> Self {
+    pub fn new(stream: &'a TokenStream, layout: Layout) -> Self {
         Self {
             stream,
             layout,
@@ -35,11 +46,11 @@ impl<'a> Formatter<'a> {
         }
     }
 
-    pub(crate) fn format(mut self) -> Result<Doc, FormatError> {
+    pub fn format(mut self) -> Result<Doc, FormatError> {
         let items = self.layout.document.items.clone();
         let header = self.layout.document.header.clone();
         let footer = self.layout.document.footer.clone();
-        let mut docs = vec![self.trivia_doc(&header, Separator::None)];
+        let mut docs = vec![self.gap_doc(&header, Separator::None)];
 
         for (position, item) in items.iter().enumerate() {
             let separator = if position == 0 {
@@ -58,28 +69,20 @@ impl<'a> Formatter<'a> {
                     }
                     _ => Separator::Empty,
                 };
-                if trivia_ends_line(&previous.trailing) {
-                    match requested {
-                        Separator::Hard => Separator::None,
-                        Separator::Empty => Separator::Hard,
-                        _ => requested,
-                    }
-                } else {
-                    requested
-                }
+                requested.after(&previous.trailing)
             };
             let mut leading = item.leading.clone();
             if position == 0
-                && let Some(first) = leading.gap.comments.first_mut()
+                && let Some(first) = leading.comments.first_mut()
             {
                 first.newlines_before = 0;
                 first.placement = CommentPlacement::Leading;
             }
             docs.push(self.movable_leading_doc(&leading, separator));
             docs.push(self.span(item.span)?);
-            docs.push(self.trivia_doc(&item.trailing, Separator::None));
+            docs.push(self.gap_doc(&item.trailing, Separator::None));
         }
-        docs.push(self.trivia_doc(&footer, Separator::None));
+        docs.push(self.gap_doc(&footer, Separator::None));
 
         if self.consumed_tokens != self.stream.len() {
             return Err(FormatError::Internal(format!(
@@ -411,27 +414,25 @@ impl<'a> Formatter<'a> {
         plan: &ImportGroupPlan,
     ) -> Result<Doc, FormatError> {
         let mut opening = plan.opening.clone();
-        if let Some(first) = opening.gap.comments.first_mut() {
+        if let Some(first) = opening.comments.first_mut() {
             first.newlines_before = 0;
         }
-        let mut docs = vec![self.trivia_doc(&opening, Separator::None)];
+        let mut docs = vec![self.gap_doc(&opening, Separator::None)];
         for (position, item) in plan.items.iter().enumerate() {
             let mut leading = item.leading.clone();
             if position == 0
-                && let Some(first) = leading.gap.comments.first_mut()
+                && let Some(first) = leading.comments.first_mut()
             {
                 first.newlines_before = 0;
             }
-            docs.push(self.movable_leading_doc(
-                &leading,
-                if position == 0 {
-                    Separator::None
-                } else {
-                    Separator::Soft
-                },
-            ));
+            let separator = if position == 0 {
+                Separator::None
+            } else {
+                Separator::Soft.after(&plan.items[position - 1].trailing)
+            };
+            docs.push(self.movable_leading_doc(&leading, separator));
             docs.push(self.span(item.span)?);
-            docs.push(self.trivia_doc(&item.before_comma, Separator::None));
+            docs.push(self.gap_doc(&item.before_comma, Separator::None));
             if item.comma.is_some() {
                 self.consumed_tokens += 1;
             }
@@ -441,18 +442,18 @@ impl<'a> Formatter<'a> {
                 docs.push(Doc::if_break(Doc::text(","), Doc::Nil));
             }
             let suppress_final_line = position + 1 == plan.items.len()
-                && plan.closing.gap.comments.is_empty()
-                && trivia_ends_line(&item.trailing);
-            docs.push(self.trivia_doc_with_final_line(
+                && plan.closing.comments.is_empty()
+                && item.trailing.ends_line();
+            docs.push(self.gap_doc_with_final_line(
                 &item.trailing,
                 Separator::None,
                 !suppress_final_line,
             ));
         }
-        docs.push(self.trivia_doc_with_final_line(
+        docs.push(self.gap_doc_with_final_line(
             &plan.closing,
             Separator::None,
-            !trivia_ends_line(&plan.closing),
+            !plan.closing.ends_line(),
         ));
         Ok(Doc::concat([
             open,
@@ -518,15 +519,11 @@ impl<'a> Formatter<'a> {
         }
     }
 
-    fn trivia_doc(&mut self, trivia: &Trivia, requested: Separator) -> Doc {
-        self.gap_doc(&trivia.gap, requested)
-    }
-
-    fn movable_leading_doc(&mut self, trivia: &Trivia, requested: Separator) -> Doc {
-        if trivia.gap.comments.is_empty() {
+    fn movable_leading_doc(&mut self, gap: &Gap, requested: Separator) -> Doc {
+        if gap.comments.is_empty() {
             separator_doc(requested)
         } else {
-            self.trivia_doc(trivia, requested)
+            self.gap_doc(gap, requested)
         }
     }
 
@@ -534,13 +531,13 @@ impl<'a> Formatter<'a> {
         self.gap_doc_with_comments(gap, requested, false, false)
     }
 
-    fn trivia_doc_with_final_line(
+    fn gap_doc_with_final_line(
         &mut self,
-        trivia: &Trivia,
+        gap: &Gap,
         requested: Separator,
         include_final_line: bool,
     ) -> Doc {
-        self.gap_doc_with_comments(&trivia.gap, requested, false, !include_final_line)
+        self.gap_doc_with_comments(gap, requested, false, !include_final_line)
     }
 
     fn gap_doc_with_comments(
@@ -626,12 +623,6 @@ fn comment_separator(comment: &Comment, requested: Separator, ignore_trailing: b
         return Doc::hard_line();
     }
     separator_doc(requested)
-}
-
-fn trivia_ends_line(trivia: &Trivia) -> bool {
-    trivia.gap.comments.last().is_some_and(|comment| {
-        comment.kind == SyntaxKind::LineComment || comment.multiline || trivia.gap.newlines > 0
-    })
 }
 
 fn no_space_after(kind: SyntaxKind) -> bool {

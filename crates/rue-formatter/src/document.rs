@@ -1,7 +1,7 @@
 //! A deliberately small, private pretty-printing document model.
 
 #[derive(Debug, Clone)]
-pub(crate) enum Doc {
+pub enum Doc {
     Nil,
     Text(String),
     Concat(Vec<Self>),
@@ -25,18 +25,18 @@ pub(crate) enum Doc {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LineKind {
+pub enum LineKind {
     Soft,
     Hard,
     Empty,
 }
 
 impl Doc {
-    pub(crate) fn text(text: impl Into<String>) -> Self {
+    pub fn text(text: impl Into<String>) -> Self {
         Self::Text(text.into())
     }
 
-    pub(crate) fn concat(docs: impl IntoIterator<Item = Self>) -> Self {
+    pub fn concat(docs: impl IntoIterator<Item = Self>) -> Self {
         let mut flattened = Vec::new();
         for doc in docs {
             match doc {
@@ -48,15 +48,15 @@ impl Doc {
         Self::Concat(flattened)
     }
 
-    pub(crate) fn space() -> Self {
+    pub fn space() -> Self {
         Self::text(" ")
     }
 
-    pub(crate) fn soft_line() -> Self {
+    pub fn soft_line() -> Self {
         Self::Line(LineKind::Soft)
     }
 
-    pub(crate) fn fill(doc: Self, indent_levels_on_break: usize) -> Self {
+    pub fn fill(doc: Self, indent_levels_on_break: usize) -> Self {
         Self::Fill {
             flat: Box::new(doc.clone()),
             broken: Box::new(doc),
@@ -65,7 +65,7 @@ impl Doc {
         }
     }
 
-    pub(crate) fn fill_choice(
+    pub fn fill_choice(
         flat: Self,
         broken: Self,
         space_when_flat: bool,
@@ -79,27 +79,27 @@ impl Doc {
         }
     }
 
-    pub(crate) fn hard_line() -> Self {
+    pub fn hard_line() -> Self {
         Self::Line(LineKind::Hard)
     }
 
-    pub(crate) fn empty_line() -> Self {
+    pub fn empty_line() -> Self {
         Self::Line(LineKind::Empty)
     }
 
-    pub(crate) fn indent(self) -> Self {
+    pub fn indent(self) -> Self {
         Self::Indent(Box::new(self))
     }
 
-    pub(crate) fn outdent(self) -> Self {
+    pub fn outdent(self) -> Self {
         Self::Outdent(Box::new(self))
     }
 
-    pub(crate) fn group(self) -> Self {
+    pub fn group(self) -> Self {
         Self::Group(Box::new(self))
     }
 
-    pub(crate) fn if_break(broken: Self, flat: Self) -> Self {
+    pub fn if_break(broken: Self, flat: Self) -> Self {
         Self::IfBreak {
             broken: Box::new(broken),
             flat: Box::new(flat),

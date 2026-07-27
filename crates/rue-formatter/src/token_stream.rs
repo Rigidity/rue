@@ -1,82 +1,97 @@
 use std::collections::HashMap;
 
-use rue_parser::{SyntaxKind, SyntaxNode};
+use rue_parser::{SyntaxKind, SyntaxNode, T};
 
 use crate::FormatError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct TokenId(usize);
+pub struct TokenId(usize);
 
 impl TokenId {
-    pub(crate) fn index(self) -> usize {
+    pub fn index(self) -> usize {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct TokenBoundary(usize);
+pub struct TokenBoundary(usize);
 
 impl TokenBoundary {
-    pub(crate) fn index(self) -> usize {
+    pub fn index(self) -> usize {
         self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TokenSpan {
+pub struct TokenSpan {
     start: TokenId,
     end: TokenBoundary,
 }
 
 impl TokenSpan {
-    pub(crate) fn start(self) -> TokenId {
+    pub fn start(self) -> TokenId {
         self.start
     }
 
-    pub(crate) fn end(self) -> TokenBoundary {
+    pub fn end(self) -> TokenBoundary {
         self.end
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Token {
-    pub(crate) kind: SyntaxKind,
-    pub(crate) text: String,
-    pub(crate) start: usize,
+pub struct Token {
+    pub kind: SyntaxKind,
+    pub text: String,
+    pub start: usize,
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct Gap {
-    pub(crate) comments: Vec<Comment>,
-    pub(crate) newlines: usize,
+pub struct Gap {
+    pub comments: Vec<Comment>,
+    pub newlines: usize,
+}
+
+impl Gap {
+    pub fn dangling(mut self) -> Self {
+        for comment in &mut self.comments {
+            comment.placement = CommentPlacement::Dangling;
+        }
+        self
+    }
+
+    pub fn ends_line(&self) -> bool {
+        self.comments.last().is_some_and(|comment| {
+            comment.kind == SyntaxKind::LineComment || comment.multiline || self.newlines > 0
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Comment {
-    pub(crate) text: String,
-    pub(crate) kind: SyntaxKind,
-    pub(crate) newlines_before: usize,
-    pub(crate) placement: CommentPlacement,
-    pub(crate) multiline: bool,
+pub struct Comment {
+    pub text: String,
+    pub kind: SyntaxKind,
+    pub newlines_before: usize,
+    pub placement: CommentPlacement,
+    pub multiline: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum CommentPlacement {
+pub enum CommentPlacement {
     Leading,
     Trailing,
     Dangling,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TokenStream {
+pub struct TokenStream {
     tokens: Vec<Token>,
     gaps: Vec<Gap>,
-    pub(crate) comment_count: usize,
+    pub comment_count: usize,
     token_by_offset: HashMap<usize, TokenId>,
 }
 
 impl TokenStream {
-    pub(crate) fn from_syntax(root: &SyntaxNode) -> Result<Self, FormatError> {
+    pub fn from_syntax(root: &SyntaxNode) -> Result<Self, FormatError> {
         let raw_tokens: Vec<_> = root
             .descendants_with_tokens()
             .filter_map(rowan::NodeOrToken::into_token)
@@ -180,61 +195,61 @@ impl TokenStream {
         })
     }
 
-    pub(crate) fn token(&self, id: TokenId) -> &Token {
+    pub fn token(&self, id: TokenId) -> &Token {
         self.tokens
             .get(id.index())
             .expect("TokenId was validated by this token stream")
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.tokens.len()
     }
 
-    pub(crate) fn token_ids(&self) -> impl Iterator<Item = (TokenId, &Token)> {
+    pub fn token_ids(&self) -> impl Iterator<Item = (TokenId, &Token)> {
         self.tokens
             .iter()
             .enumerate()
             .map(|(index, token)| (TokenId(index), token))
     }
 
-    pub(crate) fn tokens_in(&self, span: TokenSpan) -> &[Token] {
+    pub fn tokens_in(&self, span: TokenSpan) -> &[Token] {
         self.tokens
             .get(span.start().index()..span.end().index())
             .expect("TokenSpan was validated by this token stream")
     }
 
-    pub(crate) fn gap_before(&self, id: TokenId) -> &Gap {
+    pub fn gap_before(&self, id: TokenId) -> &Gap {
         self.gap(TokenBoundary(id.index()))
     }
 
-    pub(crate) fn gap(&self, boundary: TokenBoundary) -> &Gap {
+    pub fn gap(&self, boundary: TokenBoundary) -> &Gap {
         self.gaps
             .get(boundary.index())
             .expect("TokenBoundary was validated by this token stream")
     }
 
-    pub(crate) fn first_gap(&self) -> &Gap {
+    pub fn first_gap(&self) -> &Gap {
         self.gap(TokenBoundary(0))
     }
 
-    pub(crate) fn final_gap(&self) -> &Gap {
+    pub fn final_gap(&self) -> &Gap {
         self.gaps
             .last()
             .expect("a token stream always has a final gap")
     }
 
-    pub(crate) fn gaps(&self) -> impl Iterator<Item = (TokenBoundary, &Gap)> {
+    pub fn gaps(&self) -> impl Iterator<Item = (TokenBoundary, &Gap)> {
         self.gaps
             .iter()
             .enumerate()
             .map(|(index, gap)| (TokenBoundary(index), gap))
     }
 
-    pub(crate) fn end_boundary(&self) -> TokenBoundary {
+    pub fn end_boundary(&self) -> TokenBoundary {
         TokenBoundary(self.tokens.len())
     }
 
-    pub(crate) fn token_id(&self, index: usize) -> Result<TokenId, FormatError> {
+    pub fn token_id(&self, index: usize) -> Result<TokenId, FormatError> {
         (index < self.tokens.len())
             .then_some(TokenId(index))
             .ok_or_else(|| {
@@ -245,7 +260,7 @@ impl TokenStream {
             })
     }
 
-    pub(crate) fn boundary(&self, index: usize) -> Result<TokenBoundary, FormatError> {
+    pub fn boundary(&self, index: usize) -> Result<TokenBoundary, FormatError> {
         (index <= self.tokens.len())
             .then_some(TokenBoundary(index))
             .ok_or_else(|| {
@@ -256,34 +271,30 @@ impl TokenStream {
             })
     }
 
-    pub(crate) fn boundary_before(&self, id: TokenId) -> TokenBoundary {
+    pub fn boundary_before(&self, id: TokenId) -> TokenBoundary {
         let _ = self.token(id);
         TokenBoundary(id.index())
     }
 
-    pub(crate) fn boundary_after(&self, id: TokenId) -> TokenBoundary {
+    pub fn boundary_after(&self, id: TokenId) -> TokenBoundary {
         let _ = self.token(id);
         TokenBoundary(id.index() + 1)
     }
 
-    pub(crate) fn token_at(&self, boundary: TokenBoundary) -> Option<TokenId> {
+    pub fn token_at(&self, boundary: TokenBoundary) -> Option<TokenId> {
         (boundary.index() < self.tokens.len()).then_some(TokenId(boundary.index()))
     }
 
-    pub(crate) fn next_token(&self, id: TokenId) -> Option<TokenId> {
+    pub fn next_token(&self, id: TokenId) -> Option<TokenId> {
         self.token_at(self.boundary_after(id))
     }
 
-    pub(crate) fn previous_token(&self, id: TokenId) -> Option<TokenId> {
+    pub fn previous_token(&self, id: TokenId) -> Option<TokenId> {
         let _ = self.token(id);
         id.index().checked_sub(1).map(TokenId)
     }
 
-    pub(crate) fn span(
-        &self,
-        start: TokenId,
-        end: TokenBoundary,
-    ) -> Result<TokenSpan, FormatError> {
+    pub fn span(&self, start: TokenId, end: TokenBoundary) -> Result<TokenSpan, FormatError> {
         if end.index() > self.tokens.len() {
             return Err(FormatError::Internal(format!(
                 "span end {} is out of range for {} tokens",
@@ -301,21 +312,42 @@ impl TokenStream {
         Ok(TokenSpan { start, end })
     }
 
-    pub(crate) fn span_through(
-        &self,
-        start: TokenId,
-        last: TokenId,
-    ) -> Result<TokenSpan, FormatError> {
+    pub fn span_through(&self, start: TokenId, last: TokenId) -> Result<TokenSpan, FormatError> {
         self.span(start, self.boundary(last.index() + 1)?)
     }
 
-    pub(crate) fn token_id_at_offset(&self, offset: usize) -> Result<TokenId, FormatError> {
+    pub fn token_id_at_offset(&self, offset: usize) -> Result<TokenId, FormatError> {
         self.token_by_offset.get(&offset).copied().ok_or_else(|| {
             FormatError::Internal(format!(
                 "syntax token at source offset {offset} has no significant token ID"
             ))
         })
     }
+
+    pub fn matching_brace(&self, open: TokenId) -> Result<TokenId, FormatError> {
+        let mut depth = 0;
+        for (id, token) in self.token_ids().skip(open.index()) {
+            match token.kind {
+                T!['{'] => depth += 1,
+                T!['}'] => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Ok(id);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Err(FormatError::Internal(
+            "import path group has no closing delimiter".to_string(),
+        ))
+    }
+}
+
+pub fn significant_tokens(node: &SyntaxNode) -> impl Iterator<Item = rue_parser::SyntaxToken> + '_ {
+    node.descendants_with_tokens()
+        .filter_map(rowan::NodeOrToken::into_token)
+        .filter(|token| !token.kind().is_trivia())
 }
 
 fn newline_count(text: &str) -> usize {

@@ -5,56 +5,56 @@ use rue_parser::{SyntaxKind, SyntaxNode, T};
 
 use crate::{
     FormatError,
-    token_stream::{TokenId, TokenSpan, TokenStream},
-    trivia::{Trivia, split_between, split_file_header, split_group_opening},
+    token_stream::{Gap, TokenId, TokenSpan, TokenStream, significant_tokens},
+    trivia::{split_between, split_file_header, split_group_opening},
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct DocumentItem {
-    pub(crate) span: TokenSpan,
-    pub(crate) import_group: Option<usize>,
-    pub(crate) compact_group: Option<CompactGroup>,
-    pub(crate) leading: Trivia,
-    pub(crate) trailing: Trivia,
-    pub(crate) identity_key: String,
+pub struct DocumentItem {
+    pub span: TokenSpan,
+    pub import_group: Option<usize>,
+    pub compact_group: Option<CompactGroup>,
+    pub leading: Gap,
+    pub trailing: Gap,
+    pub identity_key: String,
     sort_key: String,
     original_index: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CompactGroup {
+pub enum CompactGroup {
     Constant,
     TypeAlias,
     ExternDeclaration,
 }
 
 #[derive(Debug)]
-pub(crate) struct DocumentPlan {
-    pub(crate) header: Trivia,
-    pub(crate) items: Vec<DocumentItem>,
-    pub(crate) footer: Trivia,
+pub struct DocumentPlan {
+    pub header: Gap,
+    pub items: Vec<DocumentItem>,
+    pub footer: Gap,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ImportPathItem {
-    pub(crate) span: TokenSpan,
-    pub(crate) comma: Option<TokenId>,
-    pub(crate) leading: Trivia,
-    pub(crate) before_comma: Trivia,
-    pub(crate) trailing: Trivia,
-    pub(crate) identity_key: String,
+pub struct ImportPathItem {
+    pub span: TokenSpan,
+    pub comma: Option<TokenId>,
+    pub leading: Gap,
+    pub before_comma: Gap,
+    pub trailing: Gap,
+    pub identity_key: String,
     sort_key: String,
     original_index: usize,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ImportGroupPlan {
-    pub(crate) opening: Trivia,
-    pub(crate) items: Vec<ImportPathItem>,
-    pub(crate) closing: Trivia,
+pub struct ImportGroupPlan {
+    pub opening: Gap,
+    pub items: Vec<ImportPathItem>,
+    pub closing: Gap,
 }
 
-pub(crate) fn plan_document(
+pub fn plan_document(
     document: &AstDocument,
     stream: &TokenStream,
 ) -> Result<DocumentPlan, FormatError> {
@@ -103,8 +103,8 @@ pub(crate) fn plan_document(
             span,
             import_group,
             compact_group,
-            leading: Trivia::default(),
-            trailing: Trivia::default(),
+            leading: Gap::default(),
+            trailing: Gap::default(),
             identity_key: canonical_node_key(item.syntax()),
             sort_key: format!("{path_key}\0{keyword_key}"),
             original_index,
@@ -113,31 +113,23 @@ pub(crate) fn plan_document(
 
     if items.is_empty() {
         return Ok(DocumentPlan {
-            header: Trivia::new(stream.first_gap().clone()),
+            header: stream.first_gap().clone(),
             items,
-            footer: Trivia::default(),
+            footer: Gap::default(),
         });
     }
 
     let (header, first_leading) = split_file_header(stream.gap_before(items[0].span.start()));
     items[0].leading = first_leading;
     for index in 1..items.len() {
-        let (mut trailing, leading) = split_between(stream.gap_before(items[index].span.start()));
-        if items[index - 1].import_group != items[index].import_group
-            && !trailing.gap.comments.is_empty()
-        {
-            trailing.gap.newlines = trailing.gap.newlines.min(1);
-        }
+        let (trailing, leading) = split_between(stream.gap_before(items[index].span.start()));
         items[index - 1].trailing = trailing;
         items[index].leading = leading;
     }
     let last = items
         .last_mut()
         .expect("non-empty document plan has a final item");
-    let (mut trailing, footer) = split_between(stream.final_gap());
-    if last.import_group.is_some() && !trailing.gap.comments.is_empty() {
-        trailing.gap.newlines = trailing.gap.newlines.min(1);
-    }
+    let (trailing, footer) = split_between(stream.final_gap());
     last.trailing = trailing;
 
     items.sort_by(
@@ -159,7 +151,7 @@ pub(crate) fn plan_document(
     })
 }
 
-pub(crate) fn plan_import_groups(
+pub fn plan_import_groups(
     root: &SyntaxNode,
     stream: &TokenStream,
 ) -> Result<HashMap<TokenId, ImportGroupPlan>, FormatError> {
@@ -176,7 +168,7 @@ pub(crate) fn plan_import_groups(
             continue;
         };
         let open = stream.token_id_at_offset(usize::from(open_token.text_range().start()))?;
-        let close = find_matching_close(open, stream)?;
+        let close = stream.matching_brace(open)?;
         let paths: Vec<_> = node
             .children()
             .filter(|child| child.kind() == SyntaxKind::ImportPath)
@@ -197,14 +189,14 @@ pub(crate) fn plan_import_groups(
                 .map(|token| token.text.as_str())
                 .collect();
             let before_comma = comma
-                .map(|comma| Trivia::new(stream.gap_before(comma).clone()))
+                .map(|comma| stream.gap_before(comma).clone())
                 .unwrap_or_default();
             items.push(ImportPathItem {
                 span,
                 comma,
-                leading: Trivia::default(),
+                leading: Gap::default(),
                 before_comma,
-                trailing: Trivia::default(),
+                trailing: Gap::default(),
                 identity_key: canonical_node_key(path),
                 sort_key,
                 original_index,
@@ -237,7 +229,7 @@ pub(crate) fn plan_import_groups(
             ImportGroupPlan {
                 opening,
                 items,
-                closing: Trivia::dangling(closing.gap),
+                closing: closing.dangling(),
             },
         );
     }
@@ -266,37 +258,12 @@ fn node_span(node: &SyntaxNode, stream: &TokenStream) -> Result<TokenSpan, Forma
     stream.span_through(start, last)
 }
 
-fn find_matching_close(open: TokenId, stream: &TokenStream) -> Result<TokenId, FormatError> {
-    let mut depth = 0;
-    for (id, token) in stream.token_ids().skip(open.index()) {
-        match token.kind {
-            T!['{'] => depth += 1,
-            T!['}'] => {
-                depth -= 1;
-                if depth == 0 {
-                    return Ok(id);
-                }
-            }
-            _ => {}
-        }
-    }
-    Err(FormatError::Internal(
-        "import path group has no closing delimiter".to_string(),
-    ))
-}
-
 fn gap_has_blank_line(gap: &crate::token_stream::Gap) -> bool {
     gap.newlines > 1
         || gap
             .comments
             .iter()
             .any(|comment| comment.newlines_before > 1)
-}
-
-fn significant_tokens(node: &SyntaxNode) -> impl Iterator<Item = rue_parser::SyntaxToken> + '_ {
-    node.descendants_with_tokens()
-        .filter_map(rowan::NodeOrToken::into_token)
-        .filter(|token| !token.kind().is_trivia())
 }
 
 fn canonical_node_key(node: &SyntaxNode) -> String {

@@ -23,9 +23,10 @@ use std::sync::Arc;
 use rue_ast::{AstDocument, AstNode};
 use rue_diagnostic::{Diagnostic, Source, SourceKind};
 use rue_lexer::Lexer;
-pub use rue_options::FormatOptions;
 use rue_parser::{Parser, SyntaxKind, SyntaxNode};
 use thiserror::Error;
+
+pub use rue_options::FormatOptions;
 
 use crate::{
     equivalence::comment_signature, format::format_document, renderer::render,
