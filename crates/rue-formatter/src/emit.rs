@@ -413,11 +413,13 @@ impl<'a> Formatter<'a> {
         close: Doc,
         plan: &ImportGroupPlan,
     ) -> Result<Doc, FormatError> {
-        let mut opening = plan.opening.clone();
-        if let Some(first) = opening.comments.first_mut() {
-            first.newlines_before = 0;
-        }
-        let mut docs = vec![self.gap_doc(&opening, Separator::None)];
+        let opening = self.gap_doc(&plan.opening, Separator::None);
+        let before_items = if plan.opening.ends_line() {
+            Doc::Nil
+        } else {
+            Doc::if_break(Doc::hard_line(), Doc::Nil)
+        };
+        let mut docs = Vec::new();
         for (position, item) in plan.items.iter().enumerate() {
             let mut leading = item.leading.clone();
             if position == 0
@@ -436,7 +438,7 @@ impl<'a> Formatter<'a> {
             if item.comma.is_some() {
                 self.consumed_tokens += 1;
             }
-            if position + 1 < plan.items.len() {
+            if position + 1 < plan.items.len() || !item.before_comma.comments.is_empty() {
                 docs.push(Doc::text(","));
             } else {
                 docs.push(Doc::if_break(Doc::text(","), Doc::Nil));
@@ -450,14 +452,10 @@ impl<'a> Formatter<'a> {
                 !suppress_final_line,
             ));
         }
-        docs.push(self.gap_doc_with_final_line(
-            &plan.closing,
-            Separator::None,
-            !plan.closing.ends_line(),
-        ));
+        docs.push(self.gap_doc_with_final_line(&plan.closing, Separator::None, false));
         Ok(Doc::concat([
             open,
-            Doc::concat([Doc::if_break(Doc::hard_line(), Doc::Nil), Doc::concat(docs)]).indent(),
+            Doc::concat([opening, before_items, Doc::concat(docs)]).indent(),
             Doc::if_break(Doc::hard_line(), Doc::Nil),
             close,
         ])
@@ -566,7 +564,7 @@ impl<'a> Formatter<'a> {
             docs.push(Doc::text(comment.text.clone()));
             let followed_inline = match gap.comments.get(index + 1) {
                 Some(next) => next.newlines_before == 0,
-                None => gap.newlines == 0,
+                None => gap.newlines == 0 && !suppress_final_line,
             };
             if comment.kind == SyntaxKind::BlockComment && !comment.multiline && followed_inline {
                 docs.push(Doc::space());

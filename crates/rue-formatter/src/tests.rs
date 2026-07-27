@@ -4,6 +4,7 @@ use crate::{FormatError, FormatOptions, format_source};
 
 mod comments;
 mod imports;
+mod regressions;
 
 #[allow(clippy::needless_pass_by_value)]
 fn check(input: &str, expected: Expect) {

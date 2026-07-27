@@ -98,5 +98,5 @@ pub fn split_group_opening(gap: &Gap) -> (Gap, Gap) {
     } else {
         opening.newlines = gap.newlines;
     }
-    (opening.dangling(), leading)
+    (opening, leading)
 }
