@@ -16,7 +16,7 @@ struct Command<'a> {
     doc: &'a Doc,
 }
 
-pub(crate) fn render(doc: &Doc, options: &FormatOptions) -> String {
+pub fn render(doc: &Doc, options: &FormatOptions) -> String {
     let mut output = String::new();
     let mut column = 0;
     let mut commands = vec![Command {

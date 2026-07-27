@@ -1,27 +1,9 @@
 use crate::token_stream::{CommentPlacement, Gap};
 
-#[derive(Debug, Clone, Default)]
-pub(crate) struct Trivia {
-    pub(crate) gap: Gap,
-}
-
-impl Trivia {
-    pub(crate) fn new(gap: Gap) -> Self {
-        Self { gap }
-    }
-
-    pub(crate) fn dangling(mut gap: Gap) -> Self {
-        for comment in &mut gap.comments {
-            comment.placement = CommentPlacement::Dangling;
-        }
-        Self { gap }
-    }
-}
-
 /// Splits trivia between two movable units without guessing that the whole gap
 /// belongs to the unit on its right. Inline comments form the trailing prefix;
 /// comments beginning on their own line form the leading suffix.
-pub(crate) fn split_between(gap: &Gap) -> (Trivia, Trivia) {
+pub fn split_between(gap: &Gap) -> (Gap, Gap) {
     let split = gap
         .comments
         .iter()
@@ -38,11 +20,11 @@ pub(crate) fn split_between(gap: &Gap) -> (Trivia, Trivia) {
     };
 
     if trailing.comments.is_empty() {
-        return (Trivia::default(), Trivia::new(leading));
+        return (Gap::default(), leading);
     }
     if leading.comments.is_empty() {
-        trailing.newlines = gap.newlines;
-        return (Trivia::new(trailing), Trivia::default());
+        trailing.newlines = gap.newlines.min(1);
+        return (trailing, Gap::default());
     }
 
     let first_leading = leading
@@ -51,17 +33,17 @@ pub(crate) fn split_between(gap: &Gap) -> (Trivia, Trivia) {
         .expect("leading trivia is known to contain a comment");
     trailing.newlines = first_leading.newlines_before;
     first_leading.newlines_before = 0;
-    (Trivia::new(trailing), Trivia::new(leading))
+    (trailing, leading)
 }
 
 /// Separates comments that are visually a file banner from documentation
 /// attached to the first item. The closest contiguous comment block is leading
 /// trivia; earlier blocks remain anchored at the file head.
-pub(crate) fn split_file_header(gap: &Gap) -> (Trivia, Trivia) {
+pub fn split_file_header(gap: &Gap) -> (Gap, Gap) {
     let (_, item_leading) = split_between(gap);
-    let gap = &item_leading.gap;
+    let gap = &item_leading;
     if gap.comments.is_empty() || gap.newlines > 1 {
-        return (Trivia::new(gap.clone()), Trivia::default());
+        return (gap.clone(), Gap::default());
     }
 
     let mut attached_start = gap.comments.len() - 1;
@@ -81,13 +63,13 @@ pub(crate) fn split_file_header(gap: &Gap) -> (Trivia, Trivia) {
         header.newlines = first.newlines_before;
         first.newlines_before = 0;
     }
-    (Trivia::new(header), Trivia::new(leading))
+    (header, leading)
 }
 
 /// Splits trivia after an import-group opener. Inline opener comments and
 /// standalone banner blocks stay dangling on `{`; only the closest comment
 /// block without a blank line before the first path becomes path documentation.
-pub(crate) fn split_group_opening(gap: &Gap) -> (Trivia, Trivia) {
+pub fn split_group_opening(gap: &Gap) -> (Gap, Gap) {
     let trailing_count = gap
         .comments
         .iter()
@@ -116,5 +98,5 @@ pub(crate) fn split_group_opening(gap: &Gap) -> (Trivia, Trivia) {
     } else {
         opening.newlines = gap.newlines;
     }
-    (Trivia::dangling(opening), Trivia::new(leading))
+    (opening, leading)
 }

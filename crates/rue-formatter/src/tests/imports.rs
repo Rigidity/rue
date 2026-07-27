@@ -68,6 +68,23 @@ fn trailing_comments_stay_with_sorted_imports() {
             import zeta; // zeta tail
         "#]],
     );
+    check(
+        "import b::b; // b\nimport a::a; // a\n\nimport super::shared::*;",
+        expect![[r#"
+            import a::a; // a
+            import b::b; // b
+
+            import super::shared::*;
+        "#]],
+    );
+    check(
+        "import a::a; // a\nimport super::shared::*;\nimport b::b; // b\n\n",
+        expect![[r#"
+            import a::a; // a
+            import b::b; // b
+            import super::shared::*;
+        "#]],
+    );
 }
 
 #[test]
@@ -127,6 +144,112 @@ fn file_header_is_not_first_import_documentation() {
             import alpha;
             // zeta docs
             import zeta;
+        "#]],
+    );
+}
+
+#[test]
+fn absolute_and_super_import_paths_sort_canonically() {
+    check(
+        "import ::zeta::item;\nimport root::super::thing;\nimport ::alpha::item;",
+        expect![[r#"
+            import ::alpha::item;
+            import ::zeta::item;
+            import root::super::thing;
+        "#]],
+    );
+}
+
+#[test]
+fn import_and_export_of_the_same_path_have_stable_order() {
+    check(
+        "import shared::item; // import\nexport shared::item; // export",
+        expect![[r#"
+            export shared::item; // export
+            import shared::item; // import
+        "#]],
+    );
+}
+
+#[test]
+fn block_comments_move_with_sorted_imports() {
+    check(
+        "/* zeta docs */ import zeta; /* zeta tail */\n/* alpha docs */ import alpha; /* alpha tail */",
+        expect![[r#"
+            /* alpha docs */ import alpha; /* alpha tail */
+            /* zeta docs */ import zeta; /* zeta tail */
+        "#]],
+    );
+}
+
+#[test]
+fn nested_comments_before_commas_move_with_their_paths() {
+    check(
+        "import root::{zeta /* zeta comma */,alpha /* alpha comma */};",
+        expect![[r#"
+            import root::{alpha, /* alpha comma */  zeta /* zeta comma */ ,};
+        "#]],
+    );
+}
+
+#[test]
+fn comments_on_group_delimiters_remain_dangling() {
+    check(
+        "import root::{ // opening\nzeta,\nalpha\n/* closing */};",
+        expect![[r#"
+            import root::{ // opening
+                alpha,
+                zeta,
+                /* closing */
+            };
+        "#]],
+    );
+}
+
+#[test]
+fn empty_and_single_path_import_groups_are_stable() {
+    check(
+        "import root::{};\nimport other::{item,};",
+        expect![[r#"
+            import other::{item};
+            import root::{};
+        "#]],
+    );
+}
+
+#[test]
+fn blank_lines_define_import_sorting_groups() {
+    check(
+        "import zeta;\nimport beta;\n\nimport alpha;\nimport gamma;",
+        expect![[r#"
+            import beta;
+            import zeta;
+
+            import alpha;
+            import gamma;
+        "#]],
+    );
+}
+
+#[test]
+fn deeply_nested_import_groups_sort_recursively() {
+    check(
+        "import root::{zeta::{three::{c,a,b},one},alpha::{last,first},middle};",
+        expect![[r#"
+            import root::{alpha::{first, last}, middle, zeta::{one, three::{a, b, c}}};
+        "#]],
+    );
+}
+
+#[test]
+fn duplicate_import_paths_keep_distinct_comment_owners() {
+    check(
+        "// first\nimport same::item;\n// second\nimport same::item;",
+        expect![[r#"
+            // first
+            import same::item;
+            // second
+            import same::item;
         "#]],
     );
 }

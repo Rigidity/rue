@@ -138,3 +138,115 @@ fn excessive_blank_lines_are_normalized_around_comments() {
         "#]],
     );
 }
+
+#[test]
+fn comment_only_files_and_comments_at_physical_eof() {
+    check(
+        "// only",
+        expect![[r#"
+        // only
+    "#]],
+    );
+    check(
+        "/* only */",
+        expect![[r#"
+        /* only */
+    "#]],
+    );
+    check(
+        "fn main() {} // eof",
+        expect![[r#"
+        fn main() {} // eof
+    "#]],
+    );
+}
+
+#[test]
+fn comment_line_endings_are_normalized() {
+    check(
+        "// header\r\n\r\nfn main(){// body\r\n1}\r\n",
+        expect![[r#"
+            // header
+
+            fn main() {
+                // body
+                1
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn trailing_comments_do_not_absorb_item_boundaries() {
+    check(
+        "const FIRST:Int=1; // first\n\nconst SECOND:Int=2; /* second */\n\nfn main(){FIRST+SECOND}",
+        expect![[r#"
+            const FIRST: Int = 1; // first
+
+            const SECOND: Int = 2; /* second */
+
+            fn main() {
+                FIRST + SECOND
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn comments_between_postfix_operations_keep_their_position() {
+    check(
+        "fn main(){value/* call */(/* arg */1)/* field */.field/* cast */as Int}",
+        expect![[r#"
+            fn main() {
+                value /* call */ (/* arg */ 1) /* field */ .field /* cast */ as Int
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn comments_inside_empty_delimiters_are_preserved() {
+    check(
+        "fn main(){consume(/* no arguments */);[/* no items */]}",
+        expect![[r#"
+            fn main() {
+                consume( /* no arguments */ );
+                [ /* no items */ ]
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn multiline_comments_force_stable_expression_boundaries() {
+    check(
+        "fn main(){let value=1;/* first\nsecond */value/* third\nfourth */+1}",
+        expect![[r#"
+            fn main() {
+                let value = 1; /* first
+            second */
+                value /* third
+            fourth */
+                    + 1
+            }
+        "#]],
+    );
+}
+
+#[test]
+fn comments_between_conditional_branches_are_not_duplicated() {
+    check(
+        "fn main(value:Int){if value>0{1}/* between */else if value<0{2}/* final */else{3}}",
+        expect![[r#"
+            fn main(value: Int) {
+                if value > 0 {
+                    1
+                } /* between */ else if value < 0 {
+                    2
+                } /* final */ else {
+                    3
+                }
+            }
+        "#]],
+    );
+}

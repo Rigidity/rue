@@ -5,14 +5,13 @@ use rue_ast::{AstDocument, AstNode};
 use crate::{
     FormatError,
     ordering::{plan_document, plan_import_groups},
-    token_stream::{TokenSpan, TokenStream},
-    trivia::Trivia,
+    token_stream::{Gap, TokenSpan, TokenStream},
 };
 
 /// Produces a canonical, ownership-sensitive comment signature. Reorderable
 /// imports and paths are keyed by their significant-token content, while the
 /// role and order of each comment within that unit remain significant.
-pub(crate) fn comment_signature(
+pub fn comment_signature(
     document: &AstDocument,
     stream: &TokenStream,
 ) -> Result<Vec<String>, FormatError> {
@@ -49,7 +48,7 @@ pub(crate) fn comment_signature(
         append_trivia(&mut signature, &anchor, "dangling-open", &group.opening);
         append_trivia(&mut signature, &anchor, "dangling-close", &group.closing);
         covered_gaps.insert(open.index() + 1);
-        let close = find_close(*open, stream)?;
+        let close = stream.matching_brace(*open)?;
         covered_gaps.insert(close.index());
 
         for item in &group.items {
@@ -99,8 +98,8 @@ pub(crate) fn comment_signature(
     Ok(signature)
 }
 
-fn append_trivia(signature: &mut Vec<String>, anchor: &str, role: &str, trivia: &Trivia) {
-    for (order, comment) in trivia.gap.comments.iter().enumerate() {
+fn append_trivia(signature: &mut Vec<String>, anchor: &str, role: &str, gap: &Gap) {
+    for (order, comment) in gap.comments.iter().enumerate() {
         signature.push(format!(
             "{anchor}\0{role}:{order}\0{:?}\0{}",
             comment.kind, comment.text
@@ -131,26 +130,4 @@ fn is_optional_trailing_comma(stream: &TokenStream, index: usize) -> bool {
 
 fn contains_gap(span: TokenSpan, gap: usize) -> bool {
     span.start().index() < gap && gap < span.end().index()
-}
-
-fn find_close(
-    open: crate::token_stream::TokenId,
-    stream: &TokenStream,
-) -> Result<crate::token_stream::TokenId, FormatError> {
-    let mut depth = 0;
-    for (id, token) in stream.token_ids().skip(open.index()) {
-        match token.kind {
-            rue_parser::T!['{'] => depth += 1,
-            rue_parser::T!['}'] => {
-                depth -= 1;
-                if depth == 0 {
-                    return Ok(id);
-                }
-            }
-            _ => {}
-        }
-    }
-    Err(FormatError::Internal(
-        "import path group has no closing delimiter".to_string(),
-    ))
 }

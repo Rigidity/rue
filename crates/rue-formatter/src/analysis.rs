@@ -4,11 +4,11 @@ use rue_parser::{SyntaxKind, SyntaxNode, T};
 use crate::{
     FormatError,
     ordering::{DocumentPlan, ImportGroupPlan, plan_document, plan_import_groups},
-    token_stream::{TokenId, TokenStream},
+    token_stream::{TokenId, TokenStream, significant_tokens},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DelimiterStyle {
+pub enum DelimiterStyle {
     Block,
     Braced,
     ConditionalBraced,
@@ -26,25 +26,25 @@ enum SingleArgumentLayout {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ItemBoundary {
+pub enum ItemBoundary {
     Document,
     Module,
     Block,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ContinuationOperator {
-    pub(crate) token: TokenId,
-    pub(crate) depth: usize,
+pub struct ContinuationOperator {
+    pub token: TokenId,
+    pub depth: usize,
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct TokenFacts {
-    pub(crate) pair: Option<TokenId>,
-    pub(crate) delimiter_style: Option<DelimiterStyle>,
-    pub(crate) item_boundary: Option<ItemBoundary>,
-    pub(crate) group_end: Option<TokenId>,
-    pub(crate) continuation_operators: Vec<ContinuationOperator>,
+pub struct TokenFacts {
+    pub pair: Option<TokenId>,
+    pub delimiter_style: Option<DelimiterStyle>,
+    pub item_boundary: Option<ItemBoundary>,
+    pub group_end: Option<TokenId>,
+    pub continuation_operators: Vec<ContinuationOperator>,
     flags: TokenFlags,
 }
 
@@ -69,40 +69,40 @@ impl TokenFlags {
 }
 
 impl TokenFacts {
-    pub(crate) fn supports_trailing_comma(&self) -> bool {
+    pub fn supports_trailing_comma(&self) -> bool {
         self.flags.contains(TokenFlags::TRAILING_COMMA)
     }
 
-    pub(crate) fn is_generic(&self) -> bool {
+    pub fn is_generic(&self) -> bool {
         self.flags.contains(TokenFlags::GENERIC)
     }
 
-    pub(crate) fn is_prefix_operator(&self) -> bool {
+    pub fn is_prefix_operator(&self) -> bool {
         self.flags.contains(TokenFlags::PREFIX_OPERATOR)
     }
 
-    pub(crate) fn is_attached_opener(&self) -> bool {
+    pub fn is_attached_opener(&self) -> bool {
         self.flags.contains(TokenFlags::ATTACHED_OPENER)
     }
 
-    pub(crate) fn is_absolute_path_start(&self) -> bool {
+    pub fn is_absolute_path_start(&self) -> bool {
         self.flags.contains(TokenFlags::ABSOLUTE_PATH_START)
     }
 
-    pub(crate) fn is_conditional_group(&self) -> bool {
+    pub fn is_conditional_group(&self) -> bool {
         self.flags.contains(TokenFlags::CONDITIONAL_GROUP)
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Layout {
+pub struct Layout {
     facts: Vec<TokenFacts>,
-    pub(crate) document: DocumentPlan,
-    pub(crate) import_groups: std::collections::HashMap<TokenId, ImportGroupPlan>,
+    pub document: DocumentPlan,
+    pub import_groups: std::collections::HashMap<TokenId, ImportGroupPlan>,
 }
 
 impl Layout {
-    pub(crate) fn new(document: &AstDocument, stream: &TokenStream) -> Result<Self, FormatError> {
+    pub fn new(document: &AstDocument, stream: &TokenStream) -> Result<Self, FormatError> {
         let mut facts = vec![TokenFacts::default(); stream.len()];
         pair_delimiters(stream, &mut facts)?;
         analyze_nodes(document.syntax(), stream, &mut facts)?;
@@ -116,7 +116,7 @@ impl Layout {
         })
     }
 
-    pub(crate) fn facts(&self, token: TokenId) -> &TokenFacts {
+    pub fn facts(&self, token: TokenId) -> &TokenFacts {
         &self.facts[token.index()]
     }
 }
@@ -605,12 +605,6 @@ fn collect_union_operators(node: &SyntaxNode, operators: &mut Vec<OperatorOffset
             _ => {}
         }
     }
-}
-
-fn significant_tokens(node: &SyntaxNode) -> impl Iterator<Item = rue_parser::SyntaxToken> + '_ {
-    node.descendants_with_tokens()
-        .filter_map(rowan::NodeOrToken::into_token)
-        .filter(|token| !token.kind().is_trivia())
 }
 
 fn is_generic_punctuation(kind: SyntaxKind) -> bool {
