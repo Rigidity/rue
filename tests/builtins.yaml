@@ -55,3 +55,27 @@ tests:
   runtime_cost: 12751695
   byte_cost: 9600000
   total_cost: 22351695
+- name: g1_map_matches_hash_to_g1
+  program: (a (i (= (g1_map (q . "hello")) (q . 0xb9778eae7f8b8835ca69aff31ad9a486c5382eae0f376bb67cb674c9282d4fd85e66370efc51d45fcfff3092cc237589)) (q 2 (i (= (g1_map (q . "hello") (q . "BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_AUG_")) (q . 0xb9778eae7f8b8835ca69aff31ad9a486c5382eae0f376bb67cb674c9282d4fd85e66370efc51d45fcfff3092cc237589)) (q 2 (i (= (g1_map (q . "hello") (q . "dst")) (q . 0x8952469e0f387c954bb2d9288df4b74ff2e5b5243d7c65404f3dccbb25345227466fc532f0f760d27f5651aaa085f4b1)) (q) (q 8)) 1) (q 8)) 1) (q 8)) 1)
+  debug_program: (a (i (= (g1_map (q . "hello")) (q . 0xb9778eae7f8b8835ca69aff31ad9a486c5382eae0f376bb67cb674c9282d4fd85e66370efc51d45fcfff3092cc237589)) (q 2 (i (= (g1_map (q . "hello") (q . "BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_AUG_")) (q . 0xb9778eae7f8b8835ca69aff31ad9a486c5382eae0f376bb67cb674c9282d4fd85e66370efc51d45fcfff3092cc237589)) (q 2 (i (= (g1_map (q . "hello") (q . "dst")) (q . 0x8952469e0f387c954bb2d9288df4b74ff2e5b5243d7c65404f3dccbb25345227466fc532f0f760d27f5651aaa085f4b1)) (q) (q 8 (q . "assertion failed at builtins.rue:164:5"))) 1) (q 8 (q . "assertion failed at builtins.rue:159:5"))) 1) (q 8 (q . "assertion failed at builtins.rue:155:5"))) 1)
+  output: ()
+  runtime_cost: 588332
+  byte_cost: 3792000
+  total_cost: 4380332
+- name: g2_map_matches_hash_to_g2
+  program: (a (i (= (g2_map (q . "hello")) (q . 0xadd3f3a887f40305145a82da215efda9e8ada4c80a2ce06d5d16ad3ff0d9dbcb15e922064f1c207fb86031c3d8f613ce04cb26e160634a574920b4fcfca41025d31d1e6092223ed2c358687ef7df37fe26ac8d7c4c34a9c376863c31d978d61b)) (q 2 (i (= (g2_map (q . "hello") (q . "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_")) (q . 0xadd3f3a887f40305145a82da215efda9e8ada4c80a2ce06d5d16ad3ff0d9dbcb15e922064f1c207fb86031c3d8f613ce04cb26e160634a574920b4fcfca41025d31d1e6092223ed2c358687ef7df37fe26ac8d7c4c34a9c376863c31d978d61b)) (q 2 (i (= (g2_map (q . "hello") (q . "dst")) (q . 0xa2e5e6008aca60a3e0db7e814b5de97de2fcc0809f77862ac55845d2a5b4e848180d4cfdd2564335813a6fb1cb767f6815cae7e974a61b4255e6f054604d0b6c53b61d0637dc37d3187e623192f16ba16137bc2b9f0c07057d55689857348426)) (q) (q 8)) 1) (q 8)) 1) (q 8)) 1)
+  debug_program: (a (i (= (g2_map (q . "hello")) (q . 0xadd3f3a887f40305145a82da215efda9e8ada4c80a2ce06d5d16ad3ff0d9dbcb15e922064f1c207fb86031c3d8f613ce04cb26e160634a574920b4fcfca41025d31d1e6092223ed2c358687ef7df37fe26ac8d7c4c34a9c376863c31d978d61b)) (q 2 (i (= (g2_map (q . "hello") (q . "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_")) (q . 0xadd3f3a887f40305145a82da215efda9e8ada4c80a2ce06d5d16ad3ff0d9dbcb15e922064f1c207fb86031c3d8f613ce04cb26e160634a574920b4fcfca41025d31d1e6092223ed2c358687ef7df37fe26ac8d7c4c34a9c376863c31d978d61b)) (q 2 (i (= (g2_map (q . "hello") (q . "dst")) (q . 0xa2e5e6008aca60a3e0db7e814b5de97de2fcc0809f77862ac55845d2a5b4e848180d4cfdd2564335813a6fb1cb767f6815cae7e974a61b4255e6f054604d0b6c53b61d0637dc37d3187e623192f16ba16137bc2b9f0c07057d55689857348426)) (q) (q 8 (q . "assertion failed at builtins.rue:181:5"))) 1) (q 8 (q . "assertion failed at builtins.rue:176:5"))) 1) (q 8 (q . "assertion failed at builtins.rue:172:5"))) 1)
+  output: ()
+  runtime_cost: 2450060
+  byte_cost: 5556000
+  total_cost: 8006060
+- name: g1_map_rejects_pair_message
+  program: (a (i (= (g1_map (q 1 . 2) (q . "dst")) (point_add)) (q) (q 8)) 1)
+  debug_program: (a (q 2 (i (= (g1_map (c (q . 1) (q . 2)) (q . "dst")) 2) (q) (q 8 (q . "assertion failed at builtins.rue:189:5"))) 1) (c (point_add) ()))
+  byte_cost: 528000
+  clvm_error: 'InvalidOperatorArg: g1_map used on list'
+- name: g2_map_rejects_pair_message
+  program: (a (i (= (g2_map (q 1 . 2) (q . "dst")) (g2_add)) (q) (q 8)) 1)
+  debug_program: (a (q 2 (i (= (g2_map (c (q . 1) (q . 2)) (q . "dst")) 2) (q) (q 8 (q . "assertion failed at builtins.rue:193:5"))) 1) (c (g2_add) ()))
+  byte_cost: 528000
+  clvm_error: 'InvalidOperatorArg: g2_map used on list'

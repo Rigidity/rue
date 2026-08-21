@@ -164,6 +164,12 @@ impl Builtins {
         );
 
         scope.insert_symbol(
+            "g1_map".to_string(),
+            db.alloc_symbol(Symbol::Builtin(Builtin::G1Map)),
+            false,
+        );
+
+        scope.insert_symbol(
             "g2_sum".to_string(),
             db.alloc_symbol(Symbol::Builtin(Builtin::G2Sum)),
             false,
@@ -172,6 +178,12 @@ impl Builtins {
         scope.insert_symbol(
             "g2_difference".to_string(),
             db.alloc_symbol(Symbol::Builtin(Builtin::G2Difference)),
+            false,
+        );
+
+        scope.insert_symbol(
+            "g2_map".to_string(),
+            db.alloc_symbol(Symbol::Builtin(Builtin::G2Map)),
             false,
         );
 
